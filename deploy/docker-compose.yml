@@ -1,0 +1,80 @@
+# Agent + BFF local Docker
+#   agentm local              server + ollama (default)
+#   agentm local:full         + postgres
+#   agentm local:host-ollama  server only, host Ollama
+#   agentm local:dev          + plugins rw (dev override)
+
+name: agent-management
+
+services:
+  agent-server:
+    profiles: ["local"]
+    build:
+      context: ..
+      dockerfile: deploy/config/Dockerfile
+    container_name: agent-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    env_file:
+      - ./config/.env.local
+      - ../.env
+    environment:
+      HOST: 0.0.0.0
+      WORKSPACES_ROOT: /workspaces
+      MEMORY_FILES_DIR: /memory_files
+      SQLITE_PATH: /app/data/agent.sqlite
+      PLUGIN_DIR: plugins
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+    volumes:
+      - ../data:/app/data
+      - ../workspaces:/workspaces
+      - ../memory_files:/memory_files
+      - ../plugins:/app/plugins:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  postgres:
+    profiles: ["postgres"]
+    image: pgvector/pgvector:pg16
+    container_name: agent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-agent_mgmt}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - agent_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agent} -d ${POSTGRES_DB:-agent_mgmt}"]
+      interval: 5s
+      timeout: 5s
+      retries: 8
+
+  ollama:
+    profiles: ["ollama"]
+    image: ollama/ollama:latest
+    container_name: agent-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - agent_ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 0"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 25s
+
+volumes:
+  agent_pgdata:
+  agent_ollama:

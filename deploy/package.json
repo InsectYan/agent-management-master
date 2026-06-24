@@ -1,0 +1,25 @@
+{
+  "name": "agent-management-cli",
+  "version": "1.0.0",
+  "private": true,
+  "description": "agent-management-master local Docker CLI (npm link -> agentm)",
+  "type": "module",
+  "bin": {
+    "agentm": "./bin/agentm.mjs"
+  },
+  "scripts": {
+    "link": "npm link",
+    "unlink": "npm unlink -g agent-management-cli",
+    "local": "node scripts/run.mjs local",
+    "local:full": "node scripts/run.mjs local:full",
+    "local:host-ollama": "node scripts/run.mjs local:host-ollama",
+    "local:dev": "node scripts/run.mjs local:dev",
+    "local:down": "node scripts/run.mjs local:down",
+    "local:reset": "node scripts/run.mjs local:reset",
+    "local:status": "node scripts/run.mjs local:status",
+    "local:wait": "node scripts/run.mjs local:wait",
+    "local:logs": "node scripts/run.mjs local:logs",
+    "local:pull-model": "node scripts/run.mjs local:pull-model",
+    "local:smoke": "node scripts/run.mjs local:smoke"
+  }
+}

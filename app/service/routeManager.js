@@ -26,8 +26,13 @@ class RouteManagerService extends Service {
          * 闭包捕获 skill 名；直接调用 skillInvoke，避免自定义 handler 内 controller 绑定问题
          */
         const skillName = skill.name;
+        const useStream = route.stream === true;
         const handler = async ctx => {
           try {
+            if (useStream) {
+              await ctx.service.skillInvoke.invokeStream({ skillName, ctx });
+              return;
+            }
             ctx.body = await ctx.service.skillInvoke.invoke({ skillName, ctx });
           } catch (err) {
             ctx.status = err.status || 500;

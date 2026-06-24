@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: agent-management-master API
+  description: 主 Agent 多方案平台（Agent + BFF）对外契约
+  version: 0.2.0
+servers:
+  - url: http://localhost:3001
+    description: 本地开发
+
+paths:
+  /health:
+    get:
+      summary: 存活探针
+      responses:
+        '200':
+          description: OK
+
+  /ready:
+    get:
+      summary: 就绪探针
+      responses:
+        '200':
+          description: 平台就绪
+        '503':
+          description: 未就绪
+
+  /api/schemes:
+    get:
+      summary: 已注册 Agent 方案
+      responses:
+        '200':
+          description: 方案列表
+
+  /api/plugins:
+    get:
+      summary: 已加载 Skill
+      responses:
+        '200':
+          description: Skill 列表
+
+  /api/llm/profiles:
+    get:
+      summary: LLM 模型 catalog
+      responses:
+        '200':
+          description: profile 列表
+
+  /api/memory:
+    get:
+      summary: 已启用记忆的 Skill
+      responses:
+        '200':
+          description: 记忆 Skill 列表
+
+  /api/memory/{skillName}:
+    get:
+      summary: 读取 Skill 记忆
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 记忆内容
+        '404':
+          description: 未启用记忆
+
+  /api/memory/{skillName}/append:
+    post:
+      summary: 追加记忆
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text:
+                  type: string
+                section:
+                  type: string
+      responses:
+        '200':
+          description: 追加成功
+
+  /api/memory/{skillName}/search:
+    post:
+      summary: 搜索记忆
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                limit:
+                  type: integer
+      responses:
+        '200':
+          description: 搜索结果
+
+  /api/skills/{name}/invoke:
+    post:
+      summary: 通用 Skill 调用
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SkillInvokeBody'
+      responses:
+        '200':
+          description: Skill 响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillResponse'
+
+  /api/skills/note/chat:
+    post:
+      summary: Pi 记事对话
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatBody'
+      responses:
+        '200':
+          description: 对话响应
+
+  /api/skills/note/chat/stream:
+    post:
+      summary: Pi 对话 SSE 流式
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatBody'
+      responses:
+        '200':
+          description: SSE 流
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /api/skills/weather:
+    get:
+      summary: LangChain 天气查询
+      parameters:
+        - name: city
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [query, history]
+      responses:
+        '200':
+          description: 天气结果
+
+  /api/skills/research:
+    post:
+      summary: Loop 多步调研
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                topic:
+                  type: string
+                action:
+                  type: string
+      responses:
+        '200':
+          description: 调研结果
+
+  /api/skills/qa:
+    post:
+      summary: ReAct 问答
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                action:
+                  type: string
+      responses:
+        '200':
+          description: 问答结果
+
+components:
+  schemas:
+    ChatBody:
+      type: object
+      properties:
+        session_id:
+          type: string
+        message:
+          type: string
+        llm_profile:
+          type: string
+        action:
+          type: string
+
+    SkillInvokeBody:
+      type: object
+      properties:
+        session_id:
+          type: string
+        message:
+          type: string
+        topic:
+          type: string
+        action:
+          type: string
+        llm_profile:
+          type: string
+
+    SkillResponse:
+      type: object
+      properties:
+        reply:
+          type: string
+        output:
+          type: object
+        meta:
+          type: object
+        skill:
+          type: string
+        scheme:
+          type: string
+        llm_profile_id:
+          type: string
+        llm_label:
+          type: string
+        llm_source:
+          type: string

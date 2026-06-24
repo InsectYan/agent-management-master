@@ -9,6 +9,20 @@
 const path = require('path');
 
 /**
+ * 解析路径：绝对路径原样返回，相对路径相对项目根
+ * @param {string} appBase
+ * @param {string} value
+ * @param {string} defaultRel
+ */
+function resolvePath(appBase, value, defaultRel) {
+  const raw = (value || '').trim();
+  if (raw) {
+    return path.isAbsolute(raw) ? raw : path.resolve(appBase, raw);
+  }
+  return path.join(appBase, defaultRel);
+}
+
+/**
  * Egg 配置工厂函数
  * @param {import('egg').EggAppInfo} appInfo - Egg 应用元信息
  * @returns {Record<string, unknown>} 合并后的配置对象
@@ -19,11 +33,11 @@ module.exports = appInfo => {
   /** 应用密钥（Cookie 等，本地开发占位即可） */
   config.keys = appInfo.name + '_local_dev_keys';
 
-  /** HTTP 监听端口 */
+  /** HTTP 监听端口（Docker 内设置 HOST=0.0.0.0） */
   config.cluster = {
     listen: {
       port: Number(process.env.PORT || 3001),
-      hostname: '127.0.0.1',
+      hostname: process.env.HOST || '127.0.0.1',
     },
   };
 
@@ -46,18 +60,10 @@ module.exports = appInfo => {
     /** 项目根目录绝对路径 */
     root: appInfo.baseDir,
     /** Skill 插件扫描目录 */
-    pluginDir: process.env.PLUGIN_DIR
-      ? path.resolve(appInfo.baseDir, process.env.PLUGIN_DIR)
-      : path.join(appInfo.baseDir, 'plugins'),
-    /** Pi 等工作区根目录 */
-    workspacesRoot: process.env.WORKSPACES_ROOT
-      ? path.resolve(appInfo.baseDir, process.env.WORKSPACES_ROOT)
-      : path.join(appInfo.baseDir, 'workspaces'),
-    /** 就绪探针：启动后延迟毫秒数再标记 ready */
+    pluginDir: resolvePath(appInfo.baseDir, process.env.PLUGIN_DIR, 'plugins'),
+    workspacesRoot: resolvePath(appInfo.baseDir, process.env.WORKSPACES_ROOT, 'workspaces'),
     readyDelayMs: Number(process.env.READY_DELAY_MS || 1000),
-    /** SQLite 路径（可选，默认 data/agent.sqlite） */
     sqlitePath: process.env.SQLITE_PATH || '',
-    /** 预留 PostgreSQL 连接串 */
     databaseUrl: process.env.DATABASE_URL || '',
     llm: {
       provider: (process.env.LLM_PROVIDER || 'ollama').trim().toLowerCase(),
@@ -65,6 +71,22 @@ module.exports = appInfo => {
       ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1').trim(),
       ollamaModel: (process.env.OLLAMA_MODEL || 'qwen3.6:latest').trim(),
       ollamaApiKeyPlaceholder: (process.env.OPENAI_API_KEY || 'ollama').trim(),
+    },
+    /** 记忆系统（Phase 5） */
+    memorySystem: {
+      file: {
+        dir: resolvePath(appInfo.baseDir, process.env.MEMORY_FILES_DIR, 'memory_files'),
+      },
+      vector: {
+        backend: process.env.MEMORY_VECTOR_BACKEND || 'pgvector',
+        embedModel: process.env.OLLAMA_EMBED_MODEL || 'nomic-embed-text',
+      },
+      dream: {
+        workerEnabled: process.env.MEMORY_DREAM_WORKER !== '0',
+        idleMinutes: Number(process.env.MEMORY_DREAM_IDLE_MIN || 5),
+        pollIntervalMs: Number(process.env.MEMORY_DREAM_POLL_MS || 15_000),
+        skipWhenWake: process.env.MEMORY_DREAM_SKIP_WHEN_WAKE !== '0',
+      },
     },
   };
 

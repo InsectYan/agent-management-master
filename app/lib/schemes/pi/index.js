@@ -1,40 +1,39 @@
 /**
- * @file pi/index.js
- * @description Pi Agent 方案执行器（Phase 2 完整实现 runTurn；当前为可运行的占位实现）。
+ * @file index.js
+ * @description Pi Agent 方案执行器：runTurn + 工作区 outbox 契约。
  *              文档：docs/schemes/pi/README.md
  */
 
 'use strict';
 
 const AgentExecutor = require('../base/executor');
+const { runPiTurn } = require('./runTurn');
 
 /**
- * Pi 方案执行器：未来将对接 @earendil-works/pi-agent-core 的 runTurn
+ * Pi 方案执行器
  */
 class PiExecutor extends AgentExecutor {
-  /** @type {string} 方案 ID，与 Skill.scheme 字段对应 */
   static schemeId = 'pi';
 
   /**
-   * 执行 Pi 单轮任务（占位：调用 LLM 兼容接口或返回结构化占位结果）
    * @param {import('../base/executor').ExecuteContext} context
    * @param {import('../base/executor').ExecuteParams} params
-   * @returns {Promise<import('../base/executor').ExecuteResult>}
    */
   async executeTask(context, params) {
-    const { llm, skill } = context;
+    const { llm, skill, app, ctx } = context;
     const input = params.input || {};
     const raw = params.raw || {};
     const action = input.action || raw.action || 'chat';
+    const workspacesRoot = app.config.appSettings.workspacesRoot;
 
-    /** history / list 只读动作：直接基于 enrich 数据返回 */
+    /** history / list 只读动作 */
     if (action === 'list' && Array.isArray(input.entries)) {
       const lines = input.entries.map(e =>
         `- [${e.created_at}] 用户: ${e.user_message} → 助手: ${e.assistant_reply || ''}`
       );
       const reply = lines.length
-        ? `[Pi 方案] 会话「${input.session_id}」最近 ${lines.length} 条记事：\n${lines.join('\n')}`
-        : `[Pi 方案] 会话「${input.session_id}」暂无记事`;
+        ? `会话「${input.session_id}」最近 ${lines.length} 条记事：\n${lines.join('\n')}`
+        : `会话「${input.session_id}」暂无记事`;
 
       return {
         text: reply,
@@ -45,30 +44,55 @@ class PiExecutor extends AgentExecutor {
           entries: input.entries,
           scheme: 'pi',
         },
-        meta: {
-          scheme: 'pi',
-          skill_action: action,
-          skill_doc: skill.skillDoc?.purpose ? '已按 SKILL.md 执行' : null,
-          model: llm.model,
-        },
+        meta: { scheme: 'pi', skill_action: action, model: llm.model },
       };
     }
 
+    const sessionId = input.session_id || raw.session_id || 'default';
     const message = String(input.message || input.text || '');
-    const docHint = skill.skillDoc?.purpose
-      ? `（按 SKILL.md：${skill.skillDoc.purpose.split('\n')[0].slice(0, 60)}）`
+    const stream = raw.stream === true || raw.stream === 'true' || ctx?.query?.stream === 'true';
+
+    /** 拼 inbox：附带历史摘要 */
+    const historyBlock = Array.isArray(input.recent_entries) && input.recent_entries.length
+      ? `\n\n## 最近记事\n${input.recent_entries.map(e =>
+        `- ${e.user_message} → ${e.assistant_reply || ''}`
+      ).join('\n')}`
       : '';
 
-    const reply = `[Pi 方案占位] Skill「${skill.name}」动作「${action}」${docHint} 收到：${message.slice(0, 200)}`;
+    const inbox = [
+      `# 当前消息`,
+      message,
+      historyBlock,
+      skill.skillDoc?.purpose ? `\n## Skill 用途\n${skill.skillDoc.purpose}` : '',
+    ].join('\n');
+
+    const hooks = ctx?.state?.piHooks || undefined;
+
+    const turn = await runPiTurn({
+      skill,
+      message: inbox,
+      sessionId,
+      llm,
+      workspacesRoot,
+      hooks,
+      stream,
+      context: { action, session_id: sessionId },
+      memoryContext: input._memoryContext || '',
+    });
+
+    const outbox = turn.outbox || {};
 
     return {
-      text: reply,
+      text: turn.reply,
       output: {
-        reply,
-        message_type: 'text',
-        intent: action,
-        session_id: input.session_id || raw.session_id || 'default',
+        reply: turn.reply,
+        message_type: outbox.message_type || 'text',
+        intent: outbox.intent || action,
+        session_id: sessionId,
         scheme: 'pi',
+        outbox,
+        workspace: turn.workspace,
+        session_dir: turn.session_dir,
         llm_profile_id: llm.profileId,
       },
       meta: {
@@ -76,7 +100,7 @@ class PiExecutor extends AgentExecutor {
         skill_action: action,
         skill_doc: skill.skillDoc?.purpose ? '已按 SKILL.md 执行' : null,
         model: llm.model,
-        note: 'Phase 2 将接入 pi-agent-core runTurn',
+        workspace: turn.workspace,
       },
     };
   }

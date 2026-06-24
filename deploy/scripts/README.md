@@ -1,0 +1,36 @@
+# 本地 Docker 脚本
+
+## `agentm` CLI
+
+```bash
+cd deploy && npm link
+agentm help
+```
+
+| 命令 | 作用 |
+|------|------|
+| `agentm local` | server + ollama，启动后 wait health |
+| `agentm local:full` | + postgres |
+| `agentm local:host-ollama` | 仅 server，Ollama 走宿主机 |
+| `agentm local:dev` | + `docker-compose.dev.yml`（plugins 可写） |
+| `agentm local:status` | compose ps + /health |
+| `agentm local:wait` | 等待 /health |
+| `agentm local:smoke` | 冒烟（PS/bash） |
+| `agentm local:reset` | down -v + 重建 + smoke |
+| `agentm local:pull-model` | container 内 ollama pull |
+
+等价 npm（仓库根）：`npm run docker:local` 等。
+
+## 脚本
+
+| 文件 | 说明 |
+|------|------|
+| `run.mjs` | 调度入口 |
+| `compose.ps1` / `.sh` | compose + .env  bootstrap + AGENTM_DEV |
+| `start-local.*` | 按 mode 选 profile |
+| `wait-health.*` | 等待就绪 |
+| `smoke-docker.ps1` | Windows 原生冒烟 |
+| `smoke-docker.sh` | Bash 冒烟 |
+| `status-local.ps1` | 状态一览 |
+
+环境变量：`AGENTM_DEV=1` 启用 dev override；`SKIP_SMOKE=1` 跳过 reset 冒烟。

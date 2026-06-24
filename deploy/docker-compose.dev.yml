@@ -1,0 +1,10 @@
+# Dev override: plugins read-write (edit Skill without rebuild)
+# Usage: agentm local:dev
+
+services:
+  agent-server:
+    volumes:
+      - ../plugins:/app/plugins
+    environment:
+      NODE_ENV: development
+      READY_DELAY_MS: 500

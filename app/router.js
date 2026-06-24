@@ -21,6 +21,12 @@ module.exports = app => {
   router.get('/api/plugins/:name', controller.plugin.show);
   router.get('/api/llm/profiles', controller.llm.profiles);
 
+  /** 记忆 API（Phase 5） */
+  router.get('/api/memory', controller.memory.list);
+  router.get('/api/memory/:skillName', controller.memory.show);
+  router.post('/api/memory/:skillName/append', controller.memory.append);
+  router.post('/api/memory/:skillName/search', controller.memory.search);
+
   /** 通用 invoke：POST body 同 Skill 路由参数 */
   router.post('/api/skills/:name/invoke', controller.skill.invoke);
 };

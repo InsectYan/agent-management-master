@@ -15,12 +15,23 @@ module.exports = {
     {
       path: '/api/skills/note/chat',
       method: 'POST',
-      description: 'Pi 占位对话',
+      description: 'Pi 对话',
       requiresAuth: false,
+    },
+    {
+      path: '/api/skills/note/chat/stream',
+      method: 'POST',
+      description: 'Pi 对话（SSE 流式）',
+      requiresAuth: false,
+      stream: true,
     },
   ],
   dbTables: [ 'note_entries' ],
-  memoryConfig: { enabled: false },
+  memoryConfig: {
+    enabled: true,
+    type: 'file',
+    table: 'note_memory',
+  },
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'chat' },
@@ -51,13 +62,15 @@ module.exports = {
      */
     async enrichContext(ctx, params) {
       if (params.action === 'list') {
-        const entries = ctx.service.dbManager.listNoteEntries(params.session_id, 10);
+        const entries = await ctx.service.dbManager.listNoteEntries(params.session_id, 10);
         return { action: 'list', session_id: params.session_id, entries };
       }
+      const recent = await ctx.service.dbManager.listNoteEntries(params.session_id, 5);
       return {
         action: 'chat',
         message: params.message,
         session_id: params.session_id,
+        recent_entries: recent,
       };
     },
 
@@ -71,7 +84,7 @@ module.exports = {
         return { persisted: false, reason: 'list 动作只读，不落库' };
       }
 
-      const info = ctx.service.dbManager.insertNoteEntry({
+      const info = await ctx.service.dbManager.insertNoteEntry({
         session_id: payload.params?.session_id || 'default',
         user_message: payload.params?.message || '',
         assistant_reply: payload.text || '',

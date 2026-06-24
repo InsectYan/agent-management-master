@@ -5,19 +5,43 @@
 - 设计：[`docs-design/主应用开发设计.md`](docs-design/主应用开发设计.md)
 - 开发方案：[`docs-design/主应用完整开发方案.md`](docs-design/主应用完整开发方案.md)
 - Agent 方案文档：[`docs/schemes/README.md`](docs/schemes/README.md)
+- 对外 API：[`docs/api/README.md`](docs/api/README.md)
+- 本地部署：[`deploy/README.md`](deploy/README.md)
 
 **范围**：仅 Agent + BFF 服务层。不含前端；`fitness-agent` / `cartoon-agent` 仅作技术参考。
 
 ## 快速开始
 
+### 本地开发（npm）
+
 ```bash
 cp .env.example .env
 npm install
 npm run dev          # http://127.0.0.1:3001
-npm run selftest     # 另开终端，需 dev 已启动
+npm run selftest:all
 ```
 
+### 本地 Docker（推荐联调 / 接近生产）
+
+```bash
+cp .env.example .env
+cd deploy && npm link
+agentm local                  # server + ollama（默认，较轻量）
+agentm local:full             # 含 postgres
+agentm local:dev              # plugins 可写，改 Skill 无需 rebuild
+agentm local:pull-model
+agentm local:smoke
+```
+
+宿主机 Ollama：`agentm local:host-ollama`
+
+未 link：`npm run docker:local`
+
+详见 [`deploy/README.md`](deploy/README.md)、[`deploy/OPERATIONS.md`](deploy/OPERATIONS.md)。
+
 ## 主要 API
+
+完整契约见 [`docs/api/README.md`](docs/api/README.md)。
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -27,8 +51,14 @@ npm run selftest     # 另开终端，需 dev 已启动
 | GET | `/api/plugins` | 已加载 Skill（含 dbTables、hasSkillDoc） |
 | GET | `/api/plugins/:name/skill-doc` | Skill 的 SKILL.md 全文 |
 | GET | `/api/llm/profiles` | LLM 配置 catalog |
-| GET | `/api/skills/weather?city=上海` | 示例 Skill 路由（落库 weather_history） |
-| POST | `/api/skills/note/chat` | Pi 示例对话（落库 note_entries） |
+| GET | `/api/memory` | 已启用记忆的 Skill |
+| GET | `/api/memory/:skillName` | 读取记忆 |
+| POST | `/api/memory/:skillName/append` | 追加记忆 |
+| GET | `/api/skills/weather?city=上海` | LangChain 天气 Skill |
+| POST | `/api/skills/note/chat` | Pi 记事对话 |
+| POST | `/api/skills/note/chat/stream` | Pi 对话 SSE 流式 |
+| POST | `/api/skills/research` | Loop 多步调研 |
+| POST | `/api/skills/qa` | ReAct 工具问答 |
 | POST | `/api/skills/:name/invoke` | 显式调用 Skill |
 
 ## 目录
@@ -37,7 +67,7 @@ npm run selftest     # 另开终端，需 dev 已启动
 app/lib/schemes/   # Agent 方案实现（pi / langchain / loop / react）
 app/lib/llm/       # LLM catalog + 三级优先级解析
 app/service/       # PluginManager、SkillInvoke、RouteManager
-plugins/           # Skill 插件（note-skill、weather-skill 示例）
+plugins/           # Skill 插件（note / weather / research / qa 示例）
 docs/schemes/      # 各方案说明文档
 ```
 

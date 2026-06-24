@@ -24,7 +24,11 @@ module.exports = {
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { GET: 'query' },
-    chain: { type: 'tool-agent', tools: [ 'getWeather' ] },
+    chain: {
+      type: 'tool-agent',
+      systemPrompt: '你是天气助手。根据工具返回的结构化数据，用简洁中文回答，包含温度与天气状况。',
+      tools: [ 'getWeather' ],
+    },
   },
   callbacks: {
     /**
@@ -32,10 +36,10 @@ module.exports = {
      * @param {import('egg').Context} ctx
      * @param {Object} params
      */
-    buildInput(ctx, params) {
+    async buildInput(ctx, params) {
       const city = params.city || '北京';
       if (params.action === 'history') {
-        const rows = ctx.service.dbManager.listWeatherHistory(city, 5);
+        const rows = await ctx.service.dbManager.listWeatherHistory(city, 5);
         return { action: 'history', city, history: rows };
       }
       return { action: 'query', city };
@@ -46,13 +50,13 @@ module.exports = {
      * @param {import('egg').Context} ctx
      * @param {Object} payload
      */
-    persistResult(ctx, payload) {
+    async persistResult(ctx, payload) {
       if (payload.params?.action === 'history') {
         return { persisted: false, reason: 'history 动作只读，不落库' };
       }
 
       const output = payload.output || {};
-      const info = ctx.service.dbManager.insertWeatherHistory({
+      const info = await ctx.service.dbManager.insertWeatherHistory({
         city: output.city || payload.params?.city || '未知',
         query_text: JSON.stringify(payload.params || {}),
         reply_text: payload.text || '',

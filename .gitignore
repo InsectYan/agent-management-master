@@ -147,3 +147,6 @@ data/
 
 # Pi 工作区（运行时状态，不提交）
 workspaces/
+
+# 文件记忆（运行时状态）
+memory_files/

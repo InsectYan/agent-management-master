@@ -20,6 +20,7 @@ class HealthController extends Controller {
       schemes: app.schemeRegistry.listSchemeIds(),
       skills_loaded: service.pluginManager.isLoaded(),
       skill_count: service.pluginManager.list().length,
+      memory_skills: service.memoryEngine.listEnabled().length,
     };
   }
 
@@ -49,7 +50,9 @@ class HealthController extends Controller {
         scheme: s.scheme,
         version: s.version,
         routes: s.routes.length,
+        memory: s.memoryConfig?.enabled === true,
       })),
+      memory: service.memoryEngine.listEnabled(),
     };
   }
 }

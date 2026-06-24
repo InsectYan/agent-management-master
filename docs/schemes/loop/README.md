@@ -45,22 +45,27 @@ interface LoopExecuteResult {
 
 ```javascript
 module.exports = {
-  name: 'research-skill',
+  name: 'testgen-skill',
   scheme: 'loop',
   config: {
     llmDefaultProfile: 'ollama-qwen',
-    loop: { maxSteps: 5, stopWhen: 'llm-done' },
+    loop: {
+      maxSteps: 4,
+      stopWhen: 'llm-done',
+      systemPromptFile: 'loop-system.md',   // templates/ 下 Prompt 文件
+      initialState: { testCases: [], summary: '' },
+      stateMerge: { testCases: 'concat', summary: 'replace', note: 'append' },
+      listRecordsKey: 'testgen_runs',       // enrichContext 注入的 list 数据源
+    },
   },
   callbacks: {
-    async onStep(ctx, { stepIndex, state, llm }) {
-      // 返回 { continue: boolean, state, partialOutput }
-    },
-    async onComplete(ctx, { finalState, steps }) {
-      return { reply: finalState.summary };
-    },
+    async enrichContext(ctx, params) { /* 拼 doc_content、list 数据 */ },
+    async persistResult(ctx, payload) { /* 落库 */ },
   },
 };
 ```
+
+`runLoop.js` 会从 `skill.config.loop` 读取自定义 Prompt、state 合并策略与 list 配置；未配置时回退为 research 默认行为。
 
 ---
 

@@ -1,0 +1,31 @@
+{
+  "name": "agent-management-master",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Egg.js 主 Agent 多方案平台（Agent + BFF）",
+  "egg": {
+    "typescript": false
+  },
+  "scripts": {
+    "dev": "egg-bin dev",
+    "debug": "egg-bin debug",
+    "start": "egg-scripts start --title=agent-management",
+    "stop": "egg-scripts stop --title=agent-management",
+    "test": "egg-bin test",
+    "selftest": "node scripts/selftest-basic.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "egg": "^3.28.0",
+    "egg-cors": "^3.0.1",
+    "sql.js": "^1.12.0"
+  },
+  "devDependencies": {
+    "egg-bin": "^6.13.0",
+    "egg-mock": "^5.12.0",
+    "egg-scripts": "^2.17.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

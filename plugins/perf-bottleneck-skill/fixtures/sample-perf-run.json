@@ -1,0 +1,27 @@
+{
+  "action": "analyze",
+  "run_id": 100,
+  "perf_samples": [
+    {
+      "window_start": "2026-06-27T10:00:00Z",
+      "tps": 120.5,
+      "avg_response_time_ms": 85,
+      "p95_response_time_ms": 210,
+      "error_rate": 0.02
+    },
+    {
+      "window_start": "2026-06-27T10:00:05Z",
+      "tps": 95.2,
+      "avg_response_time_ms": 120,
+      "p95_response_time_ms": 380,
+      "error_rate": 0.032
+    }
+  ],
+  "case_meta": {
+    "case_id": "TC-001",
+    "title": "课程预约接口压测",
+    "module": "course_booking",
+    "url": "/api/booking"
+  },
+  "env_name": "staging"
+}

@@ -57,16 +57,16 @@ First time:
   cd deploy && npm link
 
 Local Docker:
-  agentm local                 server + ollama (default, lighter)
-  agentm local:full            + postgres (port 5433)
-  agentm local:host-ollama     server only, use host Ollama
-  agentm local:dev               local + plugins rw (dev override)
+  agentm local                 server only, host Ollama（默认，轻量）
+  agentm local:docker-ollama   server + ollama 容器（无本机 Ollama 时用）
+  agentm local:full            + postgres (port 5500)
+  agentm local:dev               host Ollama + plugins rw（dev override）
   agentm local:down              stop all profiles
   agentm local:reset             down -v, rebuild, smoke
   agentm local:status            compose ps + /health
   agentm local:wait              wait until /health ok
   agentm local:logs              follow agent-server logs
-  agentm local:pull-model        ollama pull in container
+  agentm local:pull-model        ollama pull（容器或本机）
 
 Without link:
   npm run docker:local
@@ -85,6 +85,13 @@ switch (task) {
     process.exit(0);
     break;
   case 'local':
+    if (isWin) runPs1('start-local.ps1', [ 'host-ollama', '-Wait' ]);
+    else {
+      process.env.AGENTM_WAIT = '1';
+      runBash('start-local.sh', [ 'host-ollama' ]);
+    }
+    break;
+  case 'local:docker-ollama':
     if (isWin) runPs1('start-local.ps1', [ 'docker-ollama', '-Wait' ]);
     else {
       process.env.AGENTM_WAIT = '1';
@@ -99,6 +106,7 @@ switch (task) {
     }
     break;
   case 'local:host-ollama':
+    // 与 local 等价，保留旧命令兼容
     if (isWin) runPs1('start-local.ps1', [ 'host-ollama', '-Wait' ]);
     else {
       process.env.AGENTM_WAIT = '1';
@@ -106,6 +114,14 @@ switch (task) {
     }
     break;
   case 'local:dev':
+    if (isWin) runPs1('start-local.ps1', [ 'host-ollama', '-Dev', '-Wait' ]);
+    else {
+      process.env.AGENTM_DEV = '1';
+      process.env.AGENTM_WAIT = '1';
+      runBash('start-local.sh', [ 'host-ollama' ]);
+    }
+    break;
+  case 'local:dev:docker-ollama':
     if (isWin) runPs1('start-local.ps1', [ 'docker-ollama', '-Dev', '-Wait' ]);
     else {
       process.env.AGENTM_DEV = '1';
@@ -114,8 +130,8 @@ switch (task) {
     }
     break;
   case 'local:reset':
-    if (isWin) runPs1('reset-dev.ps1', [ arg || 'docker-ollama' ]);
-    else runBash('reset-dev.sh', [ arg || 'docker-ollama' ]);
+    if (isWin) runPs1('reset-dev.ps1', [ arg || 'host-ollama' ]);
+    else runBash('reset-dev.sh', [ arg || 'host-ollama' ]);
     break;
   case 'local:down':
     if (isWin) {

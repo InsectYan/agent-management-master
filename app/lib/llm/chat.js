@@ -45,6 +45,19 @@ function extractJsonObject(text) {
 }
 
 /**
+ * Hook 失败不中断 LLM 调用
+ * @param {LlmChatHooks} [hooks]
+ * @param {Object} payload
+ */
+function emitStatus(hooks, payload) {
+  try {
+    hooks?.onStatus?.(payload);
+  } catch {
+    // ignore
+  }
+}
+
+/**
  * 非流式 Chat Completions
  * @param {Object} options
  * @param {import('./types').LlmRuntimeConfig} options.llm
@@ -59,7 +72,7 @@ async function llmChat(options) {
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
 
-  hooks?.onStatus?.({ phase: 'llm', label: '正在调用模型…' });
+  emitStatus(hooks, { phase: 'llm', label: '正在调用模型…' });
 
   const res = await fetch(url, {
     method: 'POST',
@@ -101,7 +114,7 @@ async function llmChatStream(options) {
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
 
-  hooks?.onStatus?.({ phase: 'llm', label: '正在流式生成…' });
+  emitStatus(hooks, { phase: 'llm', label: '正在流式生成…' });
 
   const res = await fetch(url, {
     method: 'POST',

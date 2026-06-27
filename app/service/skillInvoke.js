@@ -70,7 +70,7 @@ class SkillInvokeService extends Service {
     }
 
     const memQuery = input.message || input.topic || input.question || params.message || '';
-    if (skill.memoryConfig?.enabled) {
+    if (skill.memoryConfig?.enabled && !input._skipMemory) {
       input._memoryContext = await this.service.memoryEngine.getContext(skill.name, String(memQuery));
     }
 

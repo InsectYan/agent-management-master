@@ -26,14 +26,14 @@ npm run selftest:all
 ```bash
 cp .env.example .env
 cd deploy && npm link
-agentm local                  # server + ollama（默认，较轻量）
+agentm local                  # 仅 agent-server，LLM 走本机 Ollama（默认，轻量）
 agentm local:full             # 含 postgres
 agentm local:dev              # plugins 可写，改 Skill 无需 rebuild
-agentm local:pull-model
+agentm local:pull-model       # 在本机或容器内拉模型
 agentm local:smoke
 ```
 
-宿主机 Ollama：`agentm local:host-ollama`
+无本机 Ollama 时：`agentm local:docker-ollama`（会拉取 ollama 镜像，较慢）
 
 未 link：`npm run docker:local`
 
@@ -77,7 +77,10 @@ docs/schemes/      # 各方案说明文档
    - `index.js` — 声明 `scheme`、`routes`、`dbTables`、`callbacks`
    - `SKILL.md` — 用途、执行动作、入参/出参、落库规则（平台启动时会解析）
    - `db/init.sql` — 与 `dbTables` 对应的建表脚本（启动时自动执行）
-2. 重启 `npm run dev`（自动扫描加载并建表）
+   - `db/migrations/*.sql` — 已有库增量变更（可选）
+2. 重启 `npm run dev`（自动扫描、校验 schema 差异并同步表结构）
+
+启动时会自动：执行 DDL、补列、删除代码中已移除的孤儿表（不删行数据）。详见 `.cursor/rules/database-schema-sync.mdc`。
 
 本地数据库默认 SQLite：`data/agent.sqlite`（见 `.env.example` 的 `SQLITE_PATH`）。
 

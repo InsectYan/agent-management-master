@@ -11,9 +11,55 @@ const {
   loadDocumentFile,
   normalizeTestCases,
 } = require('./lib/docParser');
+const {
+  parseTestgenStepOutput,
+  buildStepDirective,
+  STEP_PHASES,
+  salvageTestCasesArray,
+} = require('./lib/loopStepParser');
 const store = require('./lib/store');
+const bffClient = require('./lib/bffClient');
+const { createInteractionLog } = require('./lib/interactionLog');
+const { buildQuotaPlan, formatQuotaPrompt } = require('./lib/testTypeQuota');
 
 const SKILL_DIR = __dirname;
+
+/** @type {Map<string, ReturnType<typeof createInteractionLog>>} */
+const activeLogs = new Map();
+
+function attachInteractionHooks(ctx, params) {
+  const jobId = params.job_id;
+  if (!jobId || params.action === 'list' || params.action === 'get') {
+    return params;
+  }
+
+  try {
+    const logKey = String(jobId);
+    const log = createInteractionLog({
+      jobId,
+      ctx,
+      pushContext: bffClient.pushAgentContext,
+    });
+    activeLogs.set(logKey, log);
+
+    ctx.state = ctx.state || {};
+    ctx.state.schemeHooks = {
+      onStatus: payload => log.handleStatus(payload),
+    };
+    ctx.state._testgenInteractionLogKey = logKey;
+  } catch (err) {
+    ctx.app?.logger?.warn('[testgen-skill] interaction log disabled: %s', err.message);
+  }
+
+  return params;
+}
+
+function takeInteractionLog(jobId) {
+  const key = String(jobId);
+  const log = activeLogs.get(key);
+  if (log) activeLogs.delete(key);
+  return log;
+}
 
 module.exports = {
   name: 'testgen-skill',
@@ -36,14 +82,23 @@ module.exports = {
   },
   config: {
     llmDefaultProfile: 'ollama-qwen',
+    testgenBff: {
+      baseUrl: process.env.TESTGEN_BFF_URL || 'http://127.0.0.1:7003',
+      internalToken: process.env.TESTGEN_INTERNAL_TOKEN || '',
+    },
     actionDefaults: { POST: 'generate' },
     loop: {
       maxSteps: 4,
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
-      maxTokens: 2048,
+      maxTokens: 4096,
       docContentMaxLen: 8000,
+      stepPhases: STEP_PHASES,
+      enforcePhaseByStep: true,
+      blockDoneWithoutCases: true,
+      parseStepOutput: parseTestgenStepOutput,
+      buildStepDirective,
       listRecordsKey: 'testgen_runs',
       listLabelField: 'doc_title',
       listSummaryField: 'summary',
@@ -69,7 +124,7 @@ module.exports = {
         '"testCases": [{ "id", "title", "type", "priority", "preconditions", "steps", "expected", "tags" }],',
         '"done": boolean }',
       ].join(' '),
-      stepHint: '请根据当前 phase 专注本步任务；functional/edge 阶段务必输出 testCases 数组。',
+      stepHint: 'functional/edge 步必须输出 testCases 数组；仅 review 最后一步可 done=true。',
       userContextFields: [ 'doc_meta', 'endpoints', 'requirements_hint' ],
     },
   },
@@ -93,12 +148,12 @@ module.exports = {
           err.status = 400;
           throw err;
         }
-        return {
+        return attachInteractionHooks(ctx, {
           ...params,
           action,
           doc_content: String(content),
           doc_title: String(params.doc_title || params.title || '未命名文档'),
-        };
+        });
       }
 
       let docContent = params.doc_content || params.content || '';
@@ -111,7 +166,10 @@ module.exports = {
       }
 
       if (!docContent && docId) {
-        const doc = await store.getDocument(ctx, docId);
+        let doc = await store.getDocument(ctx, docId);
+        if (!doc) {
+          doc = await bffClient.fetchDocument(ctx, docId);
+        }
         if (!doc) {
           const err = new Error(`文档不存在: doc_id=${docId}`);
           err.status = 404;
@@ -128,7 +186,7 @@ module.exports = {
       }
 
       const parsed = parseDocument(docContent, { title: docTitle });
-      return {
+      return attachInteractionHooks(ctx, {
         ...params,
         action: 'generate',
         doc_id: docId,
@@ -136,7 +194,7 @@ module.exports = {
         topic: parsed.title,
         doc_title: parsed.title,
         doc_meta: parsed,
-      };
+      });
     },
 
     /**
@@ -174,11 +232,29 @@ module.exports = {
       }
 
       const meta = params.doc_meta || {};
+      const typeCounts = params.options?.type_counts || params.type_counts || {};
+      const quotaPlan = buildQuotaPlan(params.test_types, typeCounts);
+      const quotaPrompt = formatQuotaPrompt(quotaPlan);
+
+      let knowledgeHint = '';
+      if (params.module) {
+        const entries = await bffClient.fetchKnowledge(ctx, { module: params.module });
+        if (entries.length) {
+          knowledgeHint = entries
+            .slice(0, 8)
+            .map(e => `- [${e.tag || e.module}] ${e.title || ''}: ${String(e.content || '').slice(0, 100)}`)
+            .join('\n');
+        }
+      }
+
       return {
         action: 'generate',
         topic: params.topic || params.doc_title,
         doc_content: params.doc_content,
         doc_id: params.doc_id,
+        module: params.module,
+        test_types: params.test_types,
+        options: params.options,
         doc_meta: {
           title: meta.title,
           sectionCount: meta.sectionCount,
@@ -186,9 +262,16 @@ module.exports = {
           requirements: meta.requirements,
         },
         endpoints: (meta.endpoints || []).join('\n'),
-        requirements_hint: (meta.requirements || [])
-          .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)
-          .join('\n'),
+        requirements_hint: [
+          quotaPrompt,
+          (meta.requirements || [])
+            .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)
+            .join('\n'),
+          knowledgeHint ? `\n## 知识库\n${knowledgeHint}` : '',
+          params.options?.hint ? `\n## 补充说明\n${params.options.hint}` : '',
+        ].filter(Boolean).join('\n'),
+        test_type_quotas: quotaPlan,
+        _skipMemory: true,
       };
     },
 
@@ -233,6 +316,22 @@ module.exports = {
         llm_profile_id: payload.llm?.profileIdUsed || payload.llm?.profileId || '',
       });
 
+      const jobId = payload.params?.job_id;
+      const log = jobId ? takeInteractionLog(jobId) : null;
+      if (log) {
+        try {
+          log.finalize({
+            run_id: Number(info.lastInsertRowid),
+            steps_count: output.steps?.length || 0,
+            stopped_reason: output.stoppedReason || '',
+            model: payload.llm?.model || payload.meta?.model || '',
+            llm_profile_id: payload.llm?.profileIdUsed || payload.llm?.profileId || '',
+          });
+        } catch (err) {
+          ctx.app?.logger?.warn('[testgen-skill] interaction log finalize failed: %s', err.message);
+        }
+      }
+
       return {
         persisted: true,
         run_id: Number(info.lastInsertRowid),
@@ -276,7 +375,16 @@ module.exports = {
         };
       }
 
-      const testCases = normalizeTestCases(output.testCases);
+      let testCases = normalizeTestCases(output.testCases);
+      if (!testCases.length && Array.isArray(output.steps)) {
+        const salvaged = [];
+        for (const step of output.steps) {
+          salvaged.push(...salvageTestCasesArray(step.rawText || step.partialOutput || ''));
+        }
+        if (salvaged.length) {
+          testCases = normalizeTestCases(salvaged);
+        }
+      }
       return {
         reply: result.text,
         output: {

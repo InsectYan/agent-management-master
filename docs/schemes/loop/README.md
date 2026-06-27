@@ -69,8 +69,30 @@ module.exports = {
 
 ---
 
-## 5. 实现里程碑
+## 5. testgen-skill 优化配置（推荐）
+
+针对测试用例生成场景的 Loop 调优（见 `agent-management-sub/plugins/testgen-skill`）：
+
+| 配置项 | 推荐值 | 说明 |
+|--------|--------|------|
+| `maxSteps` | 4 | 对应 analyze → functional → edge → review |
+| `stopWhen` | `llm-done` | review 步输出 `done: true` 终止 |
+| `stateMerge.testCases` | `concat` | 各 phase 用例累加，避免覆盖 |
+| `userContextFields` | `doc_meta`, `endpoints`, `requirements_hint` | enrichContext 注入文档摘要 |
+| `jsonSchemaHint` | 含 `phase`, `testCases[]`, `done` | 约束 LLM 结构化输出 |
+| `temperature` | 0.3–0.5 | 用例生成偏确定性 |
+
+**phase 状态机**：LLM 每步更新 `phase` 字段；`runLoop.js` 将 partial JSON merge 进 `initialState`，下一步 Prompt 携带当前 phase 与已有 `testCases` 摘要。
+
+**与业务 BFF 协作**：Skill 的 `enrichContext` 通过 HTTP 拉取服务端文档 API，不在 Skill 内实现 PDF/MCP 工具。
+
+设计文档：[测试用例生成-Agent与BFF层设计](../../../agent-management-sub/design-docs/testgen/测试用例生成-Agent与BFF层设计.md)
+
+---
+
+## 6. 实现里程碑
 
 - [ ] `LoopExecutor` 继承 `AgentExecutor`
 - [ ] 注册到 SchemeRegistry
+- [x] 示例 Skill `testgen-skill`（测试用例生成）
 - [ ] 示例 Skill `research-skill` + selftest

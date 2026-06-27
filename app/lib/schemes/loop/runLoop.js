@@ -23,6 +23,15 @@ const DEFAULT_SYSTEM_PROMPT = [
 
 const DEFAULT_JSON_SCHEMA = '{ "continue": boolean, "note": string, "summary": string, "done": boolean }';
 
+/** Hook 失败（如日志只读）不中断 Loop */
+function emitStatus(hooks, payload) {
+  try {
+    hooks?.onStatus?.(payload);
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * @typedef {Object} LoopStep
  * @property {number} step
@@ -179,6 +188,14 @@ async function runLoop(options) {
     || loadTemplate(skill, loopConfig.systemPromptFile)
     || DEFAULT_SYSTEM_PROMPT;
 
+  emitStatus(hooks, {
+    phase: 'init',
+    label: 'Loop Agent 初始化',
+    model: llm.model,
+    llm_profile_id: llm.profileIdUsed || llm.profileId || '',
+    system_prompt: systemPrompt,
+  });
+
   const jsonSchemaHint = loopConfig.jsonSchemaHint || DEFAULT_JSON_SCHEMA;
   const userContextBlock = loopConfig.userContextFields || [];
   const extraUserLines = [];
@@ -199,21 +216,47 @@ async function runLoop(options) {
   let state = { topic, ...initialState };
   let stoppedReason = 'max_steps';
 
-  for (let step = 0; step < maxSteps; step++) {
-    hooks?.onStatus?.({ phase: 'loop', label: `Loop 第 ${step + 1}/${maxSteps} 步…` });
+    for (let step = 0; step < maxSteps; step++) {
+    const stepPhases = loopConfig.stepPhases || [];
+    const expectedPhase = stepPhases[step] || state.phase || 'analyze';
+
+    const stepDirectives = [];
+    if (stepPhases.length) {
+      stepDirectives.push(`本步强制 phase="${expectedPhase}"（与步序对齐，勿停留在 analyze）。`);
+    }
+    if (typeof loopConfig.buildStepDirective === 'function') {
+      stepDirectives.push(
+        loopConfig.buildStepDirective({ step, maxSteps, expectedPhase, input, state, loopConfig }),
+      );
+    }
 
     const userPrompt = [
       `主题：${topic}`,
       `当前步：${step + 1}/${maxSteps}`,
+      stepPhases.length ? `本步阶段：${expectedPhase}` : '',
       `期望 JSON 结构：${jsonSchemaHint}`,
       input._memoryContext ? `相关记忆：\n${input._memoryContext}` : '',
       ...extraUserLines,
+      ...stepDirectives,
       `当前 state：${JSON.stringify(state)}`,
       stopWhen === 'llm-done' ? '若任务已足够完整，请设置 done=true, continue=false' : '',
       loopConfig.stepHint || '',
     ].filter(Boolean).join('\n\n');
 
+    emitStatus(hooks, {
+      phase: 'prompt',
+      label: `准备第 ${step + 1}/${maxSteps} 步 LLM 调用`,
+      step: step + 1,
+      maxSteps,
+      current_phase: state.phase || 'analyze',
+      user_prompt: userPrompt,
+      model: llm.model,
+    });
+
+    emitStatus(hooks, { phase: 'loop', label: `Loop 第 ${step + 1}/${maxSteps} 步…` });
+
     let parsed;
+    let rawText = '';
     try {
       const result = await llmChat({
         llm,
@@ -225,12 +268,24 @@ async function runLoop(options) {
         temperature: loopConfig.temperature ?? 0.5,
         maxTokens: loopConfig.maxTokens ?? 1024,
       });
-      parsed = extractJsonObject(result.text) || {
-        continue: step < maxSteps - 1,
-        note: result.text.slice(0, 200),
-        summary: result.text.slice(0, 400),
-        done: false,
-      };
+      rawText = String(result.text || '').trim();
+      if (typeof loopConfig.parseStepOutput === 'function') {
+        parsed = loopConfig.parseStepOutput(rawText, {
+          step,
+          maxSteps,
+          expectedPhase,
+          input,
+          state,
+          loopConfig,
+        });
+      } else {
+        parsed = extractJsonObject(rawText) || {
+          continue: step < maxSteps - 1,
+          note: rawText.slice(0, 200),
+          summary: rawText.slice(0, 400),
+          done: false,
+        };
+      }
     } catch (err) {
       stoppedReason = 'llm_error';
       state.summary = `【LLM 错误】${err.message}`;
@@ -239,13 +294,35 @@ async function runLoop(options) {
 
     mergeParsedIntoState(state, parsed, stateMerge);
 
-    const partialOutput = String(parsed.note || parsed.phase || parsed.summary || '').slice(0, 500);
+    if (loopConfig.enforcePhaseByStep && expectedPhase) {
+      state.phase = expectedPhase;
+    }
+
+    const mergedCases = Array.isArray(state.testCases) ? state.testCases : [];
+    if (loopConfig.blockDoneWithoutCases && parsed.done && !mergedCases.length && step < maxSteps - 1) {
+      parsed.done = false;
+      parsed.continue = true;
+    }
+
+    const partialOutput = String(
+      parsed.note || parsed._parse_warning || parsed.phase || parsed.summary || '',
+    ).slice(0, 500);
 
     steps.push({
       step: step + 1,
+      phase: expectedPhase,
       state: JSON.parse(JSON.stringify(state)),
       partialOutput,
+      rawText: rawText.slice(0, 12000),
+      parseWarning: parsed._parse_warning || null,
       done: Boolean(parsed.done),
+    });
+
+    emitStatus(hooks, {
+      phase: 'step_done',
+      label: partialOutput || `第 ${step + 1} 步完成`,
+      step: step + 1,
+      current_phase: state.phase || 'analyze',
     });
 
     if (parsed.done || parsed.continue === false) {
@@ -253,6 +330,8 @@ async function runLoop(options) {
       break;
     }
   }
+
+  emitStatus(hooks, { phase: 'done', label: 'Loop 执行完成', model: llm.model });
 
   const reply = state.summary || `已完成 ${steps.length} 步迭代，主题：${topic}`;
 

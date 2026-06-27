@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
-MODE="${1:-docker-ollama}"
+MODE="${1:-host-ollama}"
 DEV="${AGENTM_DEV:-0}"
 WAIT="${AGENTM_WAIT:-0}"
 SMOKE="${AGENTM_SMOKE:-0}"
@@ -17,16 +17,18 @@ PROFILES=(--profile local)
 
 case "$MODE" in
   docker-ollama)
+    export OLLAMA_BASE_URL="http://ollama:11434/v1"
     PROFILES+=(--profile ollama)
-    echo "==> compose up (local + ollama)"
+    echo "==> compose up (local + ollama container)"
     ;;
   host-ollama)
     export OLLAMA_BASE_URL="http://host.docker.internal:11434/v1"
     echo "==> compose up (local + host Ollama)"
     ;;
   full)
-    PROFILES+=(--profile ollama --profile postgres)
-    echo "==> compose up (local + ollama + postgres)"
+    export OLLAMA_BASE_URL="http://host.docker.internal:11434/v1"
+    PROFILES+=(--profile postgres)
+    echo "==> compose up (local + postgres + host Ollama)"
     ;;
   *)
     echo "unknown mode: $MODE"

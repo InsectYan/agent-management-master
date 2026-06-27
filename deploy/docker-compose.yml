@@ -1,8 +1,8 @@
 # Agent + BFF local Docker
-#   agentm local              server + ollama (default)
+#   agentm local              server only, host Ollama（默认，轻量）
+#   agentm local:docker-ollama  server + ollama 容器（无本机 Ollama 时用）
 #   agentm local:full         + postgres
-#   agentm local:host-ollama  server only, host Ollama
-#   agentm local:dev          + plugins rw (dev override)
+#   agentm local:dev          + plugins rw（dev override）
 
 name: agent-management
 
@@ -25,7 +25,8 @@ services:
       MEMORY_FILES_DIR: /memory_files
       SQLITE_PATH: /app/data/agent.sqlite
       PLUGIN_DIR: plugins
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      TESTGEN_BFF_URL: ${TESTGEN_BFF_URL:-http://host.docker.internal:7003}
+      TESTGEN_INTERNAL_TOKEN: ${TESTGEN_INTERNAL_TOKEN:-}
     volumes:
       - ../data:/app/data
       - ../workspaces:/workspaces
@@ -50,7 +51,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agent_secret}
       POSTGRES_DB: ${POSTGRES_DB:-agent_mgmt}
     ports:
-      - "${POSTGRES_PORT:-5433}:5432"
+      - "${POSTGRES_PORT:-5500}:5432"
     volumes:
       - agent_pgdata:/var/lib/postgresql/data
     healthcheck:

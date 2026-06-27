@@ -9,15 +9,16 @@ agentm help
 
 | 命令 | 作用 |
 |------|------|
-| `agentm local` | server + ollama，启动后 wait health |
+| `agentm local` | 仅 server + 本机 Ollama，启动后 wait health |
+| `agentm local:docker-ollama` | server + ollama 容器（无本机 Ollama 时） |
 | `agentm local:full` | + postgres |
-| `agentm local:host-ollama` | 仅 server，Ollama 走宿主机 |
 | `agentm local:dev` | + `docker-compose.dev.yml`（plugins 可写） |
+| `agentm local:host-ollama` | 与 `local` 相同（兼容旧命令） |
 | `agentm local:status` | compose ps + /health |
 | `agentm local:wait` | 等待 /health |
 | `agentm local:smoke` | 冒烟（PS/bash） |
 | `agentm local:reset` | down -v + 重建 + smoke |
-| `agentm local:pull-model` | container 内 ollama pull |
+| `agentm local:pull-model` | 本机或容器内 `ollama pull` |
 
 等价 npm（仓库根）：`npm run docker:local` 等。
 

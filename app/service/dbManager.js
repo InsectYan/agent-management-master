@@ -5,22 +5,17 @@
 
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-
 const Service = require('egg').Service;
-const { execSql, runSql, queryAll, isPostgres } = require('../lib/db/pool');
+const { runSql, queryAll, isPostgres } = require('../lib/db/pool');
+const { syncAllSchemas: runSchemaSync, syncSkillSchema } = require('../lib/db/schemaSync');
 
 class DbManagerService extends Service {
   /**
-   * 解析 Skill 建表脚本路径
-   * @param {Object} skill
+   * 启动时全量 schema 同步（平台 + 全部 Skill）
+   * @param {Object[]} skills
    */
-  _resolveInitSqlPath(skill) {
-    const pgPath = path.join(skill.dirPath, 'db', 'init.pg.sql');
-    const sqlitePath = path.join(skill.dirPath, 'db', 'init.sql');
-    if (isPostgres() && fs.existsSync(pgPath)) return pgPath;
-    return sqlitePath;
+  async syncAllSchemas(skills) {
+    await runSchemaSync(this.app.logger, skills);
   }
 
   /**
@@ -28,15 +23,23 @@ class DbManagerService extends Service {
    */
   async syncSkillTables(skill) {
     if (!skill.dbTables?.length) return;
+    await syncSkillSchema(this.app.logger, skill);
+    await this.syncSkillRegistry(skill);
+  }
 
-    const initSql = this._resolveInitSqlPath(skill);
-    if (fs.existsSync(initSql)) {
-      const sql = fs.readFileSync(initSql, 'utf8');
-      await execSql(sql);
-      this.app.logger.info('[DbManager] Skill %s 已执行 %s', skill.name, path.basename(initSql));
-    } else {
-      this.app.logger.warn('[DbManager] Skill %s 缺少建表脚本', skill.name);
+  async syncAllSkills(skills) {
+    await this.syncAllSchemas(skills);
+    for (const skill of skills) {
+      await this.syncSkillRegistry(skill);
     }
+  }
+
+  /**
+   * 更新 plugin_registry 元数据（DDL 由 schemaSync 负责）
+   * @param {Object} skill
+   */
+  async syncSkillRegistry(skill) {
+    if (!skill.dbTables?.length) return;
 
     if (isPostgres()) {
       await runSql(`
@@ -61,12 +64,6 @@ class DbManagerService extends Service {
           enabled = 1,
           updated_at = datetime('now')
       `, [ skill.name, skill.version, skill.scheme, JSON.stringify(skill.dbTables) ]);
-    }
-  }
-
-  async syncAllSkills(skills) {
-    for (const skill of skills) {
-      await this.syncSkillTables(skill);
     }
   }
 

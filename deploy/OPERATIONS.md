@@ -12,7 +12,7 @@
                         └─ plugins/ (Skill)
                         │
             可选 ──► agent-ollama :11434
-            可选 ──► agent-postgres :5433 (预留)
+            可选 ──► agent-postgres :5500 (预留，独立于子应用 543x 段)
 ```
 
 ## 日常命令

@@ -23,6 +23,25 @@ function resolvePath(appBase, value, defaultRel) {
 }
 
 /**
+ * 解析 CORS origin：本地默认反射请求 Origin，不做白名单限制。
+ * @returns {string|((ctx: import('egg').Context) => string)}
+ */
+function resolveCorsOrigin() {
+  const raw = (process.env.CORS_ORIGIN || '').trim();
+  if (!raw || raw === '*') {
+    return ctx => ctx.get('Origin') || '*';
+  }
+  const list = raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (list.length > 1) {
+    return ctx => {
+      const origin = ctx.get('Origin');
+      return origin && list.includes(origin) ? origin : list[0];
+    };
+  }
+  return list[0];
+}
+
+/**
  * Egg 配置工厂函数
  * @param {import('egg').EggAppInfo} appInfo - Egg 应用元信息
  * @returns {Record<string, unknown>} 合并后的配置对象
@@ -44,15 +63,21 @@ module.exports = appInfo => {
   /** 中间件列表（本地个人项目暂不启用鉴权中间件） */
   config.middleware = [];
 
-  /** 跨域：供独立前端项目联调 */
+  /**
+   * 跨域：本地个人平台默认放行任意 Origin（任意端口、127.0.0.1 / localhost 均可）。
+   * 设置 CORS_ORIGIN=* 或不设置即全开放；逗号分隔可限定多个来源。
+   */
   config.cors = {
-    origin: process.env.CORS_ORIGIN || '*',
+    origin: resolveCorsOrigin(),
     allowMethods: 'GET,HEAD,PUT,POST,DELETE,PATCH,OPTIONS',
+    allowHeaders: 'Content-Type,Authorization,Accept,X-Requested-With,X-Internal-Token',
+    credentials: true,
   };
 
-  /** 安全模块：本地关闭 CSRF，便于 curl / Postman 调试 */
+  /** 安全模块：本地关闭 CSRF 等浏览器限制，便于 curl / Postman / 多前端联调 */
   config.security = {
     csrf: { enable: false },
+    domainWhiteList: [ 'localhost', '127.0.0.1', '.local' ],
   };
 
   /** 主 Agent 平台业务配置（集中入口，业务代码读 config.appSettings） */

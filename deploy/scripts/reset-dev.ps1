@@ -2,7 +2,7 @@
 param(
   [Parameter(Position = 0)]
   [ValidateSet("docker-ollama", "host-ollama", "full")]
-  [string]$OllamaMode = "docker-ollama"
+  [string]$OllamaMode = "host-ollama"
 )
 
 $ErrorActionPreference = "Stop"

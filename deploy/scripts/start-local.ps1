@@ -2,7 +2,7 @@
 param(
   [Parameter(Position = 0)]
   [ValidateSet("docker-ollama", "host-ollama", "full")]
-  [string]$OllamaMode = "docker-ollama",
+  [string]$OllamaMode = "host-ollama",
   [switch]$Dev,
   [switch]$Wait,
   [switch]$Smoke
@@ -34,24 +34,24 @@ if (-not (Test-Path $DeployEnvLocal)) {
 if ($Dev) { $env:AGENTM_DEV = "1" } else { Remove-Item Env:AGENTM_DEV -ErrorAction SilentlyContinue }
 
 $Compose = Join-Path $PSScriptRoot "compose.ps1"
-$profiles = @("--profile", "local")
 
 switch ($OllamaMode) {
   "docker-ollama" {
-    $profiles += @("--profile", "ollama")
-    Write-Host "==> compose up (local + ollama$(if ($Dev) { ' + dev' }))"
+    $env:OLLAMA_BASE_URL = "http://ollama:11434/v1"
+    Write-Host "==> compose up (local + ollama container$(if ($Dev) { ' + dev' }))"
+    & $Compose '--profile' 'local' '--profile' 'ollama' 'up' '-d' '--build'
   }
   "host-ollama" {
     $env:OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
     Write-Host "==> compose up (local + host Ollama$(if ($Dev) { ' + dev' }))"
+    & $Compose '--profile' 'local' 'up' '-d' '--build'
   }
   "full" {
-    $profiles += @("--profile", "ollama", "--profile", "postgres")
-    Write-Host "==> compose up (local + ollama + postgres$(if ($Dev) { ' + dev' }))"
+    $env:OLLAMA_BASE_URL = "http://host.docker.internal:11434/v1"
+    Write-Host "==> compose up (local + postgres + host Ollama$(if ($Dev) { ' + dev' }))"
+    & $Compose '--profile' 'local' '--profile' 'postgres' 'up' '-d' '--build'
   }
 }
-
-& $Compose @profiles up -d --build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if ($Wait -or $Smoke) {
@@ -68,11 +68,14 @@ Write-Host ""
 Write-Host "Local stack started"
 Write-Host "  Server    http://localhost:3001/health"
 Write-Host "  Ready     http://localhost:3001/ready"
-if ($OllamaMode -eq "full") { Write-Host "  Postgres  localhost:5433" }
-if ($OllamaMode -eq "docker-ollama" -or $OllamaMode -eq "full") {
+if ($OllamaMode -eq "full") {
+  $pgPort = if ($env:POSTGRES_PORT) { $env:POSTGRES_PORT } else { "5500" }
+  Write-Host "  Postgres  localhost:$pgPort"
+}
+if ($OllamaMode -eq "docker-ollama") {
   Write-Host "  Ollama    http://localhost:11434  (agentm local:pull-model)"
-} elseif ($OllamaMode -eq "host-ollama") {
-  Write-Host "  Ollama    host.docker.internal:11434"
+} else {
+  Write-Host "  Ollama    host.docker.internal:11434  (本机需已运行 ollama serve)"
 }
 if ($Dev) { Write-Host "  Dev mode  plugins/ mounted read-write" }
 Write-Host ""

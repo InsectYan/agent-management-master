@@ -37,12 +37,14 @@ if (-not $daemonOk) {
   exit 1
 }
 
-$composeArgs = @("-f", $ComposeFile)
-if ($env:AGENTM_DEV -eq "1" -and (Test-Path -LiteralPath $ComposeDevFile)) {
-  $composeArgs += @("-f", $ComposeDevFile)
+# NOTE: must not use $composeArgs — PowerShell names are case-insensitive and would overwrite $ComposeArgs param
+$fileArgs = @('-f', $ComposeFile)
+if ($env:AGENTM_DEV -eq '1' -and (Test-Path -LiteralPath $ComposeDevFile)) {
+  $fileArgs += @('-f', $ComposeDevFile)
 }
 
-$ErrorActionPreference = "Continue"
-& docker compose @composeArgs @ComposeArgs
+$ErrorActionPreference = 'Continue'
+$finalArgs = $fileArgs + @($ComposeArgs)
+& docker compose @finalArgs
 $exitCode = if ($null -ne $LASTEXITCODE) { $LASTEXITCODE } else { 0 }
 exit $exitCode

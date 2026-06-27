@@ -1,0 +1,54 @@
+---
+description: 启动时数据库 Schema 自动同步规范
+globs: "{**/database/**,**/app/lib/db/**,**/app/lib/schemaSync.js,**/app/model/**,**/plugins/**/db/**,**/app/service/dbManager.js,**/app.js}"
+alwaysApply: false
+---
+
+# 数据库 Schema 启动同步
+
+每次应用重启（`beforeStart`）须自动校验**代码定义**与**数据库实际表结构**的差异，并安全对齐。
+
+## 原则
+
+1. **自动对齐**：缺表则建表；缺列则补列（`ADD COLUMN IF NOT EXISTS` / migration SQL）。
+2. **允许删表**：代码中已移除的表，启动时可 `DROP TABLE`（孤儿表清理）。
+3. **禁止删行**：除整表删除外，不得 `TRUNCATE`、不得批量删除业务数据。
+4. **脏数据**：若列类型变更导致不兼容，优先写 migration 清空该列或整表（须在 migration 注释说明原因），而非静默丢数。
+5. **幂等**：`init.sql` 用 `CREATE TABLE IF NOT EXISTS`；增量变更放 `database/migrations/*.sql` 或 Skill `db/migrations/*.sql`。
+
+## agent-management-master
+
+| 层级 | 代码真源 | 同步入口 |
+|------|----------|----------|
+| 平台 | `app/lib/db/platform/init.pg.sql` | `app/lib/db/schemaSync.js` |
+| Skill | `plugins/*/db/init.sql` + `index.js` 的 `dbTables` | `dbManager.syncAllSkills()` → `schemaSync` |
+
+启动顺序（`app.js` `beforeStart`）：`initDb` → 加载 Skill → `dbManager.syncAllSkills`（含 schema 同步 + `plugin_registry` 元数据）。
+
+新增 Skill 表时须同时更新：
+
+- `dbTables` 数组
+- `db/init.sql`（及 `init.pg.sql`）
+- 已有库升级脚本（`db/migrations/` 可选）
+
+## admin-management-station
+
+| 层级 | 代码真源 | 同步入口 |
+|------|----------|----------|
+| 主/子 BFF | `database/init.sql` + `app/model/*` | `app/lib/schemaSync.js` |
+| 增量 | `database/migrations/*.sql` | 启动时按序执行 |
+
+各 BFF 的 `app.js` 须在 `beforeStart` 调用 `syncSchemaOnStartup(app)`，流程：
+
+1. 执行 `init.sql` + `migrations/*.sql`
+2. `sequelize.sync({ alter: true })` 对齐 ORM 模型
+3. 删除不在 Model 中的孤儿表
+
+`npm run db:init` 仅用于**空库首次初始化**或排障；日常开发依赖启动自动同步。
+
+## 开发检查清单
+
+- [ ] 改表结构时同步改 Model / `init.sql` / migration
+- [ ] 从代码删除表时确认无其他服务依赖
+- [ ] migration 使用 `IF NOT EXISTS` / `IF EXISTS` 保持可重复执行
+- [ ] 不在生产环境使用 `sequelize.sync({ force: true })`

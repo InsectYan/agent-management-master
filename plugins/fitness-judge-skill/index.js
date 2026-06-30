@@ -6,6 +6,11 @@
 'use strict';
 
 const { getRubric, listRubrics } = require('./lib/rubricRegistry');
+const {
+  ruleBasedJudge,
+  ruleBasedPreReview,
+  ruleBasedExplain,
+} = require('./lib/ruleFallback');
 
 function formatObservations(observations = []) {
   return observations.map((o, i) => [
@@ -18,16 +23,25 @@ function formatObservations(observations = []) {
   ].filter(Boolean).join('\n')).join('\n\n');
 }
 
-function parseJudgeOutput(output, text, rubric) {
-  const passThreshold = rubric.pass_threshold ?? 0.7;
+function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
+  const passThreshold = Number(thresholdJson.pass_threshold ?? rubric.pass_threshold ?? 0.7);
   const score = Number(output.score);
-  const pass = output.pass === true
-    || (Number.isFinite(score) && score >= passThreshold);
+  const hasScore = Number.isFinite(score);
+  const pass = output.pass === true || (hasScore && score >= passThreshold);
   return {
     pass,
-    score: Number.isFinite(score) ? score : (pass ? passThreshold : 0),
+    score: hasScore ? score : (pass ? passThreshold : 0),
     reasons: Array.isArray(output.reasons) ? output.reasons : [ output.summary || text || '' ].filter(Boolean),
   };
+}
+
+function needsRuleFallback(result) {
+  const output = result.output || {};
+  const meta = result.meta || {};
+  if (meta.stoppedReason === 'no_llm' || output.stoppedReason === 'no_llm') return true;
+  if (!result.text && output.score == null && output.pass == null) return true;
+  const text = result.text || '';
+  return /占位|请配置 LLM|no_llm/i.test(text);
 }
 
 module.exports = {
@@ -43,6 +57,7 @@ module.exports = {
       requiresAuth: false,
     },
   ],
+  dbTables: [ 'fitness_judge_runs' ],
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'judge' },
@@ -52,8 +67,8 @@ module.exports = {
       systemPromptFile: 'judge-system.md',
       temperature: 0.2,
       maxTokens: 2048,
-      jsonSchemaHint: '{ "continue": boolean, "done": boolean, "pass": boolean, "score": number, "reasons": string[], "summary": string }',
-      userContextFields: [ 'action', 'rubric', 'observations_text', 'run_id', 'item_id' ],
+      jsonSchemaHint: '{ "continue": boolean, "done": boolean, "pass": boolean, "score": number, "reasons": string[], "summary": string, "checklist": [{ "item", "ok", "note" }] }',
+      userContextFields: [ 'action', 'rubric', 'observations_text', 'run_id', 'item_id', 'materials_text' ],
     },
   },
   callbacks: {
@@ -64,11 +79,11 @@ module.exports = {
         return { ...params, action, rubrics: listRubrics() };
       }
 
-      if (action === 'judge' || action === 'pre_review') {
+      if (action === 'judge') {
         const rubricId = params.rubric_id || 'consult_quality_v1';
         const observations = params.observations;
         if (!Array.isArray(observations) || !observations.length) {
-          const err = new Error(`${action} 缺少 observations[]`);
+          const err = new Error('judge 缺少 observations[]');
           err.status = 400;
           throw err;
         }
@@ -78,6 +93,24 @@ module.exports = {
           rubric_id: rubricId,
           rubric: getRubric(rubricId),
           observations,
+          threshold_json: params.threshold_json || {},
+        };
+      }
+
+      if (action === 'pre_review') {
+        const materials = params.materials || {
+          observations: params.observations,
+          expected_observation: params.expected_observation,
+          threshold_json: params.threshold_json,
+        };
+        const rubricId = params.rubric_id || materials.rubric_id || 'consult_quality_v1';
+        return {
+          ...params,
+          action,
+          rubric_id: rubricId,
+          rubric: getRubric(rubricId),
+          materials,
+          observations: materials.observations || params.observations || [],
         };
       }
 
@@ -102,7 +135,8 @@ module.exports = {
       }
 
       const rubric = params.rubric || getRubric(params.rubric_id);
-      const observationsText = formatObservations(params.observations || []);
+      const observations = params.observations || params.materials?.observations || [];
+      const observationsText = formatObservations(observations);
 
       return {
         action: params.action,
@@ -116,13 +150,17 @@ module.exports = {
           criteria: rubric.prompt,
         },
         observations_text: observationsText,
-        threshold_json: params.threshold_json || {},
+        materials_text: params.materials ? JSON.stringify(params.materials, null, 2).slice(0, 4000) : '',
+        threshold_json: params.threshold_json || params.materials?.threshold_json || {},
+        _observations: observations,
+        _materials: params.materials,
       };
     },
 
     async formatResponse(ctx, result) {
       const output = result.output || {};
       const action = output.action || result.meta?.skill_action || 'judge';
+      const params = result.meta?.params || {};
 
       if (action === 'list-rubrics') {
         return {
@@ -133,21 +171,49 @@ module.exports = {
       }
 
       if (action === 'explain') {
-        const markdown = output.summary || result.text || '';
+        let markdown = output.summary || output.markdown || result.text || '';
+        if (!markdown || needsRuleFallback(result)) {
+          markdown = ruleBasedExplain(params.run_id || output.run_id, params._observations || params.observations || []);
+        }
         return {
           reply: markdown,
           output: { markdown, action: 'explain' },
-          meta: { ...result.meta, action, run_id: output.run_id },
+          meta: { ...result.meta, action, run_id: output.run_id || params.run_id },
         };
       }
 
-      const rubric = getRubric(result.meta?.rubric_id || output.rubric_id);
-      const judge = parseJudgeOutput(output, result.text, rubric);
+      if (action === 'pre_review') {
+        const rubric = getRubric(params.rubric_id || output.rubric_id);
+        let preReview;
+        if (needsRuleFallback(result) || !Array.isArray(output.checklist)) {
+          preReview = ruleBasedPreReview(params._materials || params.materials || {}, rubric);
+        } else {
+          preReview = {
+            score: Number(output.score) || 0,
+            checklist: output.checklist,
+          };
+        }
+        return {
+          reply: result.text || `预审得分 ${preReview.score}`,
+          output: { action: 'pre_review', score: preReview.score, checklist: preReview.checklist },
+          meta: { ...result.meta, action, rubric_id: rubric.name, skill: 'fitness-judge-skill', fallback: !!preReview.fallback },
+        };
+      }
+
+      const rubric = getRubric(params.rubric_id || output.rubric_id);
+      const thresholdJson = params.threshold_json || {};
+      let judge;
+
+      if (needsRuleFallback(result)) {
+        judge = ruleBasedJudge(params._observations || params.observations || [], rubric, thresholdJson);
+      } else {
+        judge = parseJudgeOutput(output, result.text, rubric, thresholdJson);
+      }
 
       return {
         reply: result.text || (judge.pass ? '判定通过' : '判定未通过'),
         output: {
-          action,
+          action: 'judge',
           judge,
           pass: judge.pass,
           score: judge.score,
@@ -155,9 +221,10 @@ module.exports = {
         },
         meta: {
           ...result.meta,
-          action,
+          action: 'judge',
           rubric_id: rubric.name,
           skill: 'fitness-judge-skill',
+          fallback: !!judge.fallback,
         },
       };
     },

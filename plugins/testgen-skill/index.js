@@ -21,6 +21,7 @@ const store = require('./lib/store');
 const bffClient = require('./lib/bffClient');
 const { createInteractionLog } = require('./lib/interactionLog');
 const { buildQuotaPlan, formatQuotaPrompt } = require('./lib/testTypeQuota');
+const { validateTestCaseDraft } = require('./lib/draftValidator');
 
 const SKILL_DIR = __dirname;
 
@@ -174,11 +175,20 @@ module.exports = {
       }
 
       if (action === 'validate_draft') {
-        const dry = await bffClient.dryRunFitness(ctx, params.item_id, {
-          scheme_id: params.scheme_id,
-          dry_run: true,
-        });
-        return { ...params, action, dry_run_result: dry };
+        const testCases = params.test_cases || params.draft?.test_cases || params.draft?.testCases || [];
+        const validation = validateTestCaseDraft(testCases);
+        if (!validation.valid) {
+          return { ...params, action, validation };
+        }
+        let dryRunResult = null;
+        if (params.item_id) {
+          dryRunResult = await bffClient.dryRunFitness(ctx, params.item_id, {
+            scheme_id: params.scheme_id,
+            dry_run: true,
+            test_cases: testCases,
+          });
+        }
+        return { ...params, action, validation, dry_run_result: dryRunResult };
       }
 
       if (action === 'sync_to_item') {
@@ -265,7 +275,16 @@ module.exports = {
         };
       }
 
-      if ([ 'enrich_samples', 'validate_draft', 'sync_to_item' ].includes(params.action)) {
+      if (params.action === 'validate_draft') {
+        return {
+          action: 'validate_draft',
+          validation: params.validation,
+          dry_run_result: params.dry_run_result,
+          _skipMemory: true,
+        };
+      }
+
+      if ([ 'enrich_samples', 'sync_to_item' ].includes(params.action)) {
         return { action: params.action, ...params };
       }
 
@@ -429,7 +448,22 @@ module.exports = {
         };
       }
 
-      if ([ 'enrich_samples', 'validate_draft', 'sync_to_item' ].includes(action)) {
+      if (action === 'validate_draft') {
+        const validation = output.validation || result.meta?.validation || {};
+        return {
+          reply: validation.valid ? '草案结构校验通过' : `草案校验失败: ${(validation.errors || []).join('; ')}`,
+          output: {
+            action: 'validate_draft',
+            valid: validation.valid,
+            errors: validation.errors || [],
+            warnings: validation.warnings || [],
+            dry_run_result: output.dry_run_result || result.meta?.dry_run_result,
+          },
+          meta: { ...result.meta, action, persisted: false },
+        };
+      }
+
+      if ([ 'enrich_samples', 'sync_to_item' ].includes(action)) {
         return {
           reply: result.text || `动作 ${action} 完成`,
           output: { action, ...output, ...result.meta },

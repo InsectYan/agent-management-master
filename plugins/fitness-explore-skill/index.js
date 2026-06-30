@@ -1,5 +1,16 @@
 'use strict';
 
+const { planFromCurrentSteps, normalizeStep } = require('./lib/planFallback');
+
+function needsRuleFallback(result) {
+  const output = result.output || {};
+  if (result.meta?.stoppedReason === 'no_llm') return true;
+  if (Array.isArray(output.steps) && output.steps.length) return false;
+  if (output.step) return false;
+  const text = result.text || '';
+  return /占位|请配置 LLM|no_llm/i.test(text) || !output.steps;
+}
+
 module.exports = {
   name: 'fitness-explore-skill',
   version: '1.0.0',
@@ -17,8 +28,8 @@ module.exports = {
       systemPromptFile: 'explore-system.md',
       temperature: 0.3,
       maxTokens: 2048,
-      jsonSchemaHint: '{ "done": boolean, "step": object, "reason": string }',
-      userContextFields: [ 'goal', 'history_text', 'max_explore_steps' ],
+      jsonSchemaHint: '{ "done": boolean, "steps": [{ "path", "method", "extract" }], "reason": string }',
+      userContextFields: [ 'current_steps_text', 'env_url', 'goal', 'max_explore_steps' ],
     },
   },
   callbacks: {
@@ -28,32 +39,58 @@ module.exports = {
         err.status = 400;
         throw err;
       }
-      return { ...params, action: 'plan', history: params.history || [] };
+      const currentSteps = params.current_steps || params.history || [];
+      return {
+        ...params,
+        action: 'plan',
+        current_steps: currentSteps,
+        env_url: params.env_url || '',
+      };
     },
 
     async enrichContext(ctx, params) {
-      const historyText = (params.history || []).map((h, i) =>
-        `#${i + 1} ${h.input || ''} => ${h.output || ''} [${h.verdict || ''}]`,
-      ).join('\n');
+      const currentSteps = params.current_steps || [];
+      const currentStepsText = currentSteps.map((s, i) =>
+        `#${i + 1} ${s.method || 'GET'} ${s.path || s.url || '/'} extract=${JSON.stringify(s.extract || {})}`,
+      ).join('\n') || '(无已执行步骤)';
+
       return {
         action: 'plan',
-        goal: params.goal || '',
-        history_text: historyText || '(无历史)',
+        env_url: params.env_url || '',
+        current_steps_text: currentStepsText,
+        goal: params.goal || params.explore_goal || '',
         max_explore_steps: params.max_explore_steps || 5,
+        _current_steps: currentSteps,
       };
     },
 
     async formatResponse(ctx, result) {
       const output = result.output || {};
+      const params = result.meta?.params || {};
+      let steps = [];
+      let reason = output.reason || '';
+      let fallback = false;
+
+      if (Array.isArray(output.steps) && output.steps.length) {
+        steps = output.steps.map(s => normalizeStep(s, params.env_url));
+      } else if (output.step) {
+        steps = [ normalizeStep(output.step, params.env_url) ];
+      } else if (needsRuleFallback(result)) {
+        const plan = planFromCurrentSteps(params._current_steps || params.current_steps || [], params.env_url);
+        steps = plan.steps;
+        reason = plan.reason;
+        fallback = true;
+      }
+
       return {
-        reply: result.text || output.reason || '探索步骤已规划',
+        reply: result.text || reason || '探索步骤已规划',
         output: {
           action: 'plan',
+          steps,
           done: output.done === true,
-          step: output.step || null,
-          reason: output.reason || '',
+          reason,
         },
-        meta: { ...result.meta, skill: 'fitness-explore-skill' },
+        meta: { ...result.meta, skill: 'fitness-explore-skill', step_count: steps.length, fallback },
       };
     },
   },

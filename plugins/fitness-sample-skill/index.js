@@ -1,8 +1,15 @@
 'use strict';
 
+const { generateRuleBased } = require('./lib/sampleGenerator');
+
 function normalizeSamples(raw) {
   if (!Array.isArray(raw)) return [];
   return raw.map((s, i) => ({
+    path: s.path || s.input_data?.path || '/',
+    method: s.method || s.input_data?.method || 'POST',
+    expect_status: s.expect_status ?? s.expected_data?.expect_status ?? 200,
+    expect_blocked: s.expect_blocked,
+    block_statuses: s.block_statuses,
     input_data: s.input_data || {
       runner: 'http',
       path: s.path || '/',
@@ -10,40 +17,35 @@ function normalizeSamples(raw) {
       body: s.body,
       headers: s.headers,
     },
-    expected_data: s.expected_data || (s.expected ? { expected: s.expected } : null),
+    expected_data: s.expected_data || (s.expected ? { expected: s.expected } : { expect_status: s.expect_status ?? 200 }),
     metadata: s.metadata || { index: i },
     sort_order: s.sort_order ?? i,
   }));
 }
 
-function fallbackFromExample(params) {
-  const example = params.test_input_example || '';
-  const cases = params.test_cases || [];
-  if (cases.length) {
-    return normalizeSamples(cases.map(tc => ({
-      path: tc.steps?.[0] || tc.path,
-      method: tc.method || 'POST',
-      body: tc.body,
-      expected: tc.expected,
-      metadata: { source: 'test_cases', case_id: tc.id },
-    })));
+function ruleBasedForAction(action, params) {
+  const generated = generateRuleBased(action, params);
+  if (Array.isArray(generated)) {
+    return { samples: normalizeSamples(generated), forbidden_patterns: [] };
   }
-  return normalizeSamples([{
-    input_data: {
-      runner: 'http',
-      path: '/',
-      method: 'POST',
-      body: { prompt: example.slice(0, 500) },
-    },
-    expected_data: { expected: '语义满足 rubric' },
-    metadata: { source: 'example_fallback' },
-  }]);
+  return {
+    samples: normalizeSamples(generated.samples || []),
+    forbidden_patterns: generated.forbidden_patterns || [],
+  };
+}
+
+function needsRuleFallback(result) {
+  const output = result.output || {};
+  if (result.meta?.stoppedReason === 'no_llm') return true;
+  if (!Array.isArray(output.samples) || !output.samples.length) return true;
+  const text = result.text || '';
+  return /占位|请配置 LLM|no_llm/i.test(text);
 }
 
 module.exports = {
   name: 'fitness-sample-skill',
   version: '1.0.0',
-  description: 'Fitness 样本/矩阵/对抗集 AI 生成',
+  description: 'Fitness 样本/矩阵/对抗集生成（规则 + LLM）',
   scheme: 'react',
   routes: [
     { path: '/api/skills/fitness-sample', method: 'POST', requiresAuth: false },
@@ -58,7 +60,7 @@ module.exports = {
       temperature: 0.4,
       maxTokens: 4096,
       jsonSchemaHint: '{ "done": boolean, "samples": array, "forbidden_patterns": string[], "summary": string }',
-      userContextFields: [ 'action', 'scheme_id', 'test_input_example', 'test_cases_text' ],
+      userContextFields: [ 'action', 'scheme_id', 'test_input_example', 'test_cases_text', 'matrix_dims' ],
     },
   },
   callbacks: {
@@ -79,30 +81,42 @@ module.exports = {
         : '';
       return {
         action: params.action,
-        scheme_id: params.scheme_id || 'TS-04-SET',
+        scheme_id: params.scheme_id || (params.action === 'expand_matrix' ? 'TS-02-BND' : params.action === 'gen_adversarial' ? 'TS-07-NEG' : 'TS-04-SET'),
         item_id: params.item_id,
         test_input_example: params.test_input_example || '',
         test_cases_text: casesText,
+        matrix_dims: params.matrix_dims || params.dimensions,
         sample_set_id: params.sample_set_id,
+        _params: params,
       };
     },
 
     async formatResponse(ctx, result) {
       const output = result.output || {};
+      const action = output.action || result.meta?.skill_action || result.meta?.params?.action || 'from_example';
+      const params = result.meta?.params || output._params || {};
+
       let samples = normalizeSamples(output.samples);
-      if (!samples.length) {
-        samples = fallbackFromExample(result.meta?.params || output);
+      let forbidden_patterns = output.forbidden_patterns || [];
+      let fallback = false;
+
+      if (needsRuleFallback(result)) {
+        const rule = ruleBasedForAction(action, { ...params, ...output });
+        samples = rule.samples;
+        forbidden_patterns = rule.forbidden_patterns;
+        fallback = true;
       }
+
       return {
         reply: result.text || `已生成 ${samples.length} 条样本`,
         output: {
-          action: output.action || 'from_example',
+          action,
           samples,
           items: samples,
-          forbidden_patterns: output.forbidden_patterns || [],
-          summary: output.summary || result.text,
+          forbidden_patterns,
+          summary: output.summary || result.text || (fallback ? '规则引擎生成' : ''),
         },
-        meta: { ...result.meta, skill: 'fitness-sample-skill', sample_count: samples.length },
+        meta: { ...result.meta, skill: 'fitness-sample-skill', sample_count: samples.length, fallback },
       };
     },
   },

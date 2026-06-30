@@ -8,6 +8,7 @@ React 方案 Skill：在 **性能测试 run 完成** 后，根据 `perf_results`
 
 | action | 说明 | 必填参数 |
 | analyze | 分析单次性能 run | run_id, perf_samples |
+| analyze_load_run | TS-09/k6 负载 run 解读 | run_id, perf_samples (tps, p95, error_rate windows) |
 | list | 最近分析记录 | |
 | get | 单次分析详情 | run_id |
 

@@ -88,9 +88,103 @@ async function pushAgentContext(ctx, jobId, agentContext) {
   });
 }
 
+/**
+ * @param {import('egg').Context} ctx
+ * @param {{ module?: string, scheme_id?: string, limit?: number }} query
+ */
+async function fetchFitnessItemSuggestions(ctx, query = {}) {
+  const baseUrl = resolveBaseUrl(ctx);
+  const qs = new URLSearchParams();
+  if (query.module) qs.set('module', query.module);
+  if (query.scheme_id) qs.set('scheme_id', query.scheme_id);
+  if (query.limit) qs.set('limit', String(query.limit));
+  const url = `${baseUrl}/api/internal/fitness/items/suggest${qs.toString() ? `?${qs}` : ''}`;
+  const res = await ctx.curl(url, {
+    method: 'GET',
+    dataType: 'json',
+    headers: buildHeaders(ctx),
+    timeout: 15000,
+  });
+  if (res.status !== 200) return [];
+  return res.data?.data || res.data || [];
+}
+
+/**
+ * @param {import('egg').Context} ctx
+ * @param {number} sampleSetId
+ * @param {object[]} items
+ */
+async function bulkCreateSamples(ctx, sampleSetId, items) {
+  const baseUrl = resolveBaseUrl(ctx);
+  const res = await ctx.curl(`${baseUrl}/api/internal/fitness/samples/bulk`, {
+    method: 'POST',
+    contentType: 'json',
+    data: { sample_set_id: sampleSetId, items },
+    dataType: 'json',
+    headers: buildHeaders(ctx),
+    timeout: 30000,
+  });
+  if (res.status !== 200) {
+    const err = new Error(res.data?.message || 'bulk samples failed');
+    err.status = res.status;
+    throw err;
+  }
+  return res.data?.data || res.data;
+}
+
+/**
+ * @param {import('egg').Context} ctx
+ * @param {string} itemId
+ * @param {object} body
+ */
+async function dryRunFitness(ctx, itemId, body = {}) {
+  const baseUrl = resolveBaseUrl(ctx);
+  const res = await ctx.curl(`${baseUrl}/api/internal/fitness/run/${encodeURIComponent(itemId)}/dry-run`, {
+    method: 'POST',
+    contentType: 'json',
+    data: body,
+    dataType: 'json',
+    headers: buildHeaders(ctx),
+    timeout: 120000,
+  });
+  if (res.status !== 200) {
+    const err = new Error(res.data?.message || 'dry-run failed');
+    err.status = res.status;
+    throw err;
+  }
+  return res.data?.data || res.data;
+}
+
+/**
+ * @param {import('egg').Context} ctx
+ * @param {string} itemId
+ * @param {object} patch
+ */
+async function patchFitnessItem(ctx, itemId, patch) {
+  const baseUrl = resolveBaseUrl(ctx);
+  const res = await ctx.curl(`${baseUrl}/api/internal/fitness/items/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH',
+    contentType: 'json',
+    data: patch,
+    dataType: 'json',
+    headers: buildHeaders(ctx),
+    timeout: 15000,
+  });
+  if (res.status !== 200) {
+    const err = new Error(res.data?.message || 'patch item failed');
+    err.status = res.status;
+    throw err;
+  }
+  return res.data?.data || res.data;
+}
+
 module.exports = {
   fetchDocument,
   fetchKnowledge,
   pushAgentContext,
+  fetchFitnessItemSuggestions,
+  bulkCreateSamples,
+  dryRunFitness,
+  patchFitnessItem,
   resolveBaseUrl,
 };

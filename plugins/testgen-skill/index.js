@@ -156,6 +156,39 @@ module.exports = {
         });
       }
 
+      if (action === 'enrich_samples') {
+        const items = Array.isArray(params.test_cases)
+          ? params.test_cases.map(tc => ({
+            input_data: {
+              runner: 'http',
+              path: tc.steps?.[0] || tc.path || '/',
+              method: tc.method || 'POST',
+              body: tc.body || tc.input,
+            },
+            expected_data: { expected: tc.expected },
+            metadata: { source: 'testgen-skill', case_id: tc.id },
+          }))
+          : [];
+        const bulk = await bffClient.bulkCreateSamples(ctx, params.sample_set_id, items);
+        return { ...params, action, bulk_result: bulk };
+      }
+
+      if (action === 'validate_draft') {
+        const dry = await bffClient.dryRunFitness(ctx, params.item_id, {
+          scheme_id: params.scheme_id,
+          dry_run: true,
+        });
+        return { ...params, action, dry_run_result: dry };
+      }
+
+      if (action === 'sync_to_item') {
+        const patch = await bffClient.patchFitnessItem(ctx, params.item_id, {
+          expected_observation: params.expected_observation,
+          execution_note: params.execution_note,
+        });
+        return { ...params, action, patch_result: patch };
+      }
+
       let docContent = params.doc_content || params.content || '';
       let docTitle = params.doc_title || params.title || '';
       let docId = params.doc_id ? Number(params.doc_id) : null;
@@ -179,16 +212,17 @@ module.exports = {
         docTitle = docTitle || doc.title;
       }
 
-      if (!docContent.trim() && action === 'generate') {
+      if (!docContent.trim() && (action === 'generate' || action === 'generate_for_fitness')) {
         const err = new Error('generate 需提供 doc_content、doc_id 或 doc_path');
         err.status = 400;
         throw err;
       }
 
       const parsed = parseDocument(docContent, { title: docTitle });
+      const resolvedAction = action === 'generate_for_fitness' ? 'generate_for_fitness' : 'generate';
       return attachInteractionHooks(ctx, {
         ...params,
-        action: 'generate',
+        action: resolvedAction,
         doc_id: docId,
         doc_content: docContent,
         topic: parsed.title,
@@ -231,6 +265,10 @@ module.exports = {
         };
       }
 
+      if ([ 'enrich_samples', 'validate_draft', 'sync_to_item' ].includes(params.action)) {
+        return { action: params.action, ...params };
+      }
+
       const meta = params.doc_meta || {};
       const typeCounts = params.options?.type_counts || params.type_counts || {};
       const quotaPlan = buildQuotaPlan(params.test_types, typeCounts);
@@ -247,8 +285,23 @@ module.exports = {
         }
       }
 
+      let fitnessHint = '';
+      if (params.action === 'generate_for_fitness' || params.fitness_context?.scheme_id || params.scheme_id) {
+        const schemeId = params.scheme_id || params.fitness_context?.scheme_id;
+        const suggestions = await bffClient.fetchFitnessItemSuggestions(ctx, {
+          module: params.module,
+          scheme_id: schemeId,
+          limit: 8,
+        });
+        if (suggestions.length) {
+          fitnessHint = suggestions.map(s =>
+            `- ${s.item_id}: ${s.title} [${s.scheme_primary_id}] example=${String(s.test_input_example || '').slice(0, 80)}`,
+          ).join('\n');
+        }
+      }
+
       return {
-        action: 'generate',
+        action: params.action === 'generate_for_fitness' ? 'generate_for_fitness' : 'generate',
         topic: params.topic || params.doc_title,
         doc_content: params.doc_content,
         doc_id: params.doc_id,
@@ -268,6 +321,7 @@ module.exports = {
             .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)
             .join('\n'),
           knowledgeHint ? `\n## 知识库\n${knowledgeHint}` : '',
+          fitnessHint ? `\n## Fitness 测试项参考\n${fitnessHint}\n方案: ${params.scheme_id || params.fitness_context?.scheme_id || '—'}` : '',
           params.options?.hint ? `\n## 补充说明\n${params.options.hint}` : '',
         ].filter(Boolean).join('\n'),
         test_type_quotas: quotaPlan,
@@ -372,6 +426,14 @@ module.exports = {
             action: 'register-doc',
           },
           meta: { ...result.meta, action: 'register-doc' },
+        };
+      }
+
+      if ([ 'enrich_samples', 'validate_draft', 'sync_to_item' ].includes(action)) {
+        return {
+          reply: result.text || `动作 ${action} 完成`,
+          output: { action, ...output, ...result.meta },
+          meta: { ...result.meta, action },
         };
       }
 

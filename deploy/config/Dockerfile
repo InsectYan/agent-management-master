@@ -20,11 +20,11 @@ USER appuser
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
-ENV PORT=3001
+ENV PORT=4001
 
-EXPOSE 3001
+EXPOSE 4001
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
-  CMD curl -f http://127.0.0.1:3001/health || exit 1
+  CMD curl -f http://127.0.0.1:4001/health || exit 1
 
 CMD ["npx", "egg-scripts", "start", "--title=agent-management", "--workers=1"]

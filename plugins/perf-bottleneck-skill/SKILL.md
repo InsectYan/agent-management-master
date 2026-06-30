@@ -43,7 +43,7 @@ React 方案 Skill：在 **性能测试 run 完成** 后，根据 `perf_results`
 ## 调用示例
 
 ```bash
-curl -X POST http://127.0.0.1:3001/api/skills/perf-bottleneck-skill/invoke \
+curl -X POST http://127.0.0.1:4001/api/skills/perf-bottleneck-skill/invoke \
   -H "Content-Type: application/json" \
   -d '{
     "action": "analyze",

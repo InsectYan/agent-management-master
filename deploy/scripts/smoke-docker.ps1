@@ -1,6 +1,6 @@
 # Docker smoke (PowerShell, no Git Bash required)
 param(
-  [string]$Base = "http://127.0.0.1:3001",
+  [string]$Base = "http://127.0.0.1:4001",
   [int]$MaxWait = 120
 )
 

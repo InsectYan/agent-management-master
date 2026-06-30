@@ -15,7 +15,7 @@ services:
     container_name: agent-server
     restart: unless-stopped
     ports:
-      - "${PORT:-3001}:3001"
+      - "${PORT:-4001}:${PORT:-4001}"
     env_file:
       - ./config/.env.local
       - ../.env
@@ -25,7 +25,7 @@ services:
       MEMORY_FILES_DIR: /memory_files
       SQLITE_PATH: /app/data/agent.sqlite
       PLUGIN_DIR: plugins
-      TESTGEN_BFF_URL: ${TESTGEN_BFF_URL:-http://host.docker.internal:7003}
+      TESTGEN_BFF_URL: ${TESTGEN_BFF_URL:-http://host.docker.internal:5202}
       TESTGEN_INTERNAL_TOKEN: ${TESTGEN_INTERNAL_TOKEN:-}
     volumes:
       - ../data:/app/data
@@ -35,7 +35,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:3001/health"]
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:$${PORT:-4001}/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 6

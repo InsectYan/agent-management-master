@@ -7,8 +7,8 @@ Write-Host "==> docker compose ps"
 Write-Host ""
 Write-Host "==> health probe"
 try {
-  $h = Invoke-RestMethod -Uri "http://127.0.0.1:3001/health" -TimeoutSec 3
+  $h = Invoke-RestMethod -Uri "http://127.0.0.1:4001/health" -TimeoutSec 3
   Write-Host ($h | ConvertTo-Json -Compress)
 } catch {
-  Write-Host "  server not reachable on :3001" -ForegroundColor Yellow
+  Write-Host "  server not reachable on :4001" -ForegroundColor Yellow
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # agent-management-master Docker smoke (no browser)
 set -euo pipefail
-BASE="${SMOKE_BASE_URL:-http://localhost:3001}"
+BASE="${SMOKE_BASE_URL:-http://localhost:4001}"
 MAX_WAIT="${SMOKE_MAX_WAIT:-120}"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 

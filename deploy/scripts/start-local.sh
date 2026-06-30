@@ -46,4 +46,4 @@ if [ "$SMOKE" = "1" ]; then
 fi
 
 echo ""
-echo "Local stack started — http://localhost:3001/health"
+echo "Local stack started — http://localhost:4001/health"

@@ -5,7 +5,7 @@
 
 'use strict';
 
-const BASE = process.env.BASE_URL || 'http://127.0.0.1:3001';
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:4001';
 
 async function getJson(path) {
   const res = await fetch(`${BASE}${path}`);

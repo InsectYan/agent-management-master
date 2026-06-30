@@ -17,7 +17,7 @@
 ```bash
 cp .env.example .env
 npm install
-npm run dev          # http://127.0.0.1:3001
+npm run dev          # http://127.0.0.1:4001
 npm run selftest:all
 ```
 

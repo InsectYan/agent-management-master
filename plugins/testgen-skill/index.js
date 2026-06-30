@@ -83,7 +83,7 @@ module.exports = {
   config: {
     llmDefaultProfile: 'ollama-qwen',
     testgenBff: {
-      baseUrl: process.env.TESTGEN_BFF_URL || 'http://127.0.0.1:7003',
+      baseUrl: process.env.TESTGEN_BFF_URL || 'http://127.0.0.1:5202',
       internalToken: process.env.TESTGEN_INTERNAL_TOKEN || '',
     },
     actionDefaults: { POST: 'generate' },

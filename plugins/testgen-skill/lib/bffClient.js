@@ -10,7 +10,7 @@ function resolveBaseUrl(ctx) {
   if (fromEnv) return fromEnv.replace(/\/$/, '');
   const skillConfig = ctx.app?.config?.plugins?.['testgen-skill']?.testgenBff;
   if (skillConfig?.baseUrl) return skillConfig.baseUrl.replace(/\/$/, '');
-  return 'http://127.0.0.1:7003';
+  return 'http://127.0.0.1:5202';
 }
 
 function buildHeaders(ctx) {

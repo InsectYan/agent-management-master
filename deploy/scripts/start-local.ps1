@@ -66,8 +66,8 @@ if ($Smoke) {
 
 Write-Host ""
 Write-Host "Local stack started"
-Write-Host "  Server    http://localhost:3001/health"
-Write-Host "  Ready     http://localhost:3001/ready"
+Write-Host "  Server    http://localhost:4001/health"
+Write-Host "  Ready     http://localhost:4001/ready"
 if ($OllamaMode -eq "full") {
   $pgPort = if ($env:POSTGRES_PORT) { $env:POSTGRES_PORT } else { "5500" }
   Write-Host "  Postgres  localhost:$pgPort"

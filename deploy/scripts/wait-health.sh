@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-BASE="${SMOKE_BASE_URL:-http://127.0.0.1:3001}"
+BASE="${SMOKE_BASE_URL:-http://127.0.0.1:4001}"
 MAX_WAIT="${SMOKE_MAX_WAIT:-120}"
 echo "==> wait $BASE/health max ${MAX_WAIT}s"
 for i in $(seq 1 "$MAX_WAIT"); do

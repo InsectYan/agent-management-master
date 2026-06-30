@@ -55,7 +55,7 @@ module.exports = appInfo => {
   /** HTTP 监听端口（Docker 内设置 HOST=0.0.0.0） */
   config.cluster = {
     listen: {
-      port: Number(process.env.PORT || 3001),
+      port: Number(process.env.PORT || 4001),
       hostname: process.env.HOST || '127.0.0.1',
     },
   };

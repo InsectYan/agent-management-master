@@ -4,7 +4,7 @@ info:
   description: 主 Agent 多方案平台（Agent + BFF）对外契约
   version: 0.2.0
 servers:
-  - url: http://localhost:3001
+  - url: http://localhost:4001
     description: 本地开发
 
 paths:

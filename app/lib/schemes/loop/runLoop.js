@@ -184,7 +184,9 @@ async function runLoop(options) {
     };
   }
 
-  const systemPrompt = loopConfig.systemPrompt
+  const systemPrompt = input.loop_system_prompt
+    || (input.loop_system_prompt_file && loadTemplate(skill, input.loop_system_prompt_file))
+    || loopConfig.systemPrompt
     || loadTemplate(skill, loopConfig.systemPromptFile)
     || DEFAULT_SYSTEM_PROMPT;
 
@@ -196,7 +198,7 @@ async function runLoop(options) {
     system_prompt: systemPrompt,
   });
 
-  const jsonSchemaHint = loopConfig.jsonSchemaHint || DEFAULT_JSON_SCHEMA;
+  const jsonSchemaHint = input.loop_json_schema_hint || loopConfig.jsonSchemaHint || DEFAULT_JSON_SCHEMA;
   const userContextBlock = loopConfig.userContextFields || [];
   const extraUserLines = [];
 
@@ -344,6 +346,7 @@ async function runLoop(options) {
     : null;
 
   const output = {
+    action: input.action,
     topic,
     summary: state.summary,
     steps,

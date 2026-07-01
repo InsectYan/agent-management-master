@@ -22,6 +22,12 @@ const bffClient = require('./lib/bffClient');
 const { createInteractionLog } = require('./lib/interactionLog');
 const { buildQuotaPlan, formatQuotaPrompt } = require('./lib/testTypeQuota');
 const { validateTestCaseDraft } = require('./lib/draftValidator');
+const {
+  formatTemplateOutputForPrompt,
+  buildFitnessPrimaryContext,
+} = require('./lib/templateOutputFormats');
+const { auditItemDetailFields, normalizeFitnessTestCases } = require('./lib/fitnessFieldSchema');
+const { isFitnessMode } = require('./lib/loopStepParser');
 
 const SKILL_DIR = __dirname;
 
@@ -126,7 +132,13 @@ module.exports = {
         '"done": boolean }',
       ].join(' '),
       stepHint: 'functional/edge 步必须输出 testCases 数组；仅 review 最后一步可 done=true。',
-      userContextFields: [ 'doc_meta', 'endpoints', 'requirements_hint' ],
+      userContextFields: [
+        'fitness_primary_context',
+        'template_output_format',
+        'doc_meta',
+        'endpoints',
+        'requirements_hint',
+      ],
     },
   },
   callbacks: {
@@ -199,8 +211,8 @@ module.exports = {
         return { ...params, action, patch_result: patch };
       }
 
-      let docContent = params.doc_content || params.content || '';
-      let docTitle = params.doc_title || params.title || '';
+      let docContent = params.doc_content || params.document_content || params.content || '';
+      let docTitle = params.doc_title || params.title || params.document_title || '';
       let docId = params.doc_id ? Number(params.doc_id) : null;
 
       if (!docContent && params.doc_path) {
@@ -223,9 +235,20 @@ module.exports = {
       }
 
       if (!docContent.trim() && (action === 'generate' || action === 'generate_for_fitness')) {
-        const err = new Error('generate 需提供 doc_content、doc_id 或 doc_path');
+        const err = new Error('generate 需提供 doc_content、document_content、doc_id 或 doc_path');
         err.status = 400;
         throw err;
+      }
+
+      if (action === 'generate_for_fitness') {
+        const schemeId = params.scheme_id
+          || params.fitness_context?.scheme_id
+          || params.options?.scheme_target?.scheme_id;
+        if (!schemeId) {
+          const err = new Error('generate_for_fitness 需要 scheme_id 或 fitness_context.scheme_id');
+          err.status = 400;
+          throw err;
+        }
       }
 
       const parsed = parseDocument(docContent, { title: docTitle });
@@ -289,9 +312,22 @@ module.exports = {
       }
 
       const meta = params.doc_meta || {};
+      const isFitness = params.action === 'generate_for_fitness'
+        || Boolean(params.fitness_context?.scheme_id || params.scheme_id);
+
       const typeCounts = params.options?.type_counts || params.type_counts || {};
       const quotaPlan = buildQuotaPlan(params.test_types, typeCounts);
       const quotaPrompt = formatQuotaPrompt(quotaPlan);
+
+      const templateCode = params.template_code
+        || params.fitness_context?.template_code
+        || params.options?.scheme_target?.template_code
+        || 'TPL-DET';
+
+      const fitnessPrimary = params.fitness_primary_context
+        || buildFitnessPrimaryContext(params);
+      const templateOutputFormat = params.template_output_format
+        || formatTemplateOutputForPrompt(templateCode);
 
       let knowledgeHint = '';
       if (params.module) {
@@ -327,6 +363,15 @@ module.exports = {
         module: params.module,
         test_types: params.test_types,
         options: params.options,
+        scheme_id: params.scheme_id || params.fitness_context?.scheme_id,
+        validation_id: params.validation_id || params.fitness_context?.validation_id,
+        template_code: templateCode,
+        fitness_primary_context: fitnessPrimary,
+        template_output_format: templateOutputFormat,
+        loop_system_prompt_file: isFitness ? 'fitness-loop-system.md' : undefined,
+        loop_json_schema_hint: isFitness
+          ? '{ "continue", "phase", "note", "summary", "coverage_notes", "testCases": [{ "item_name", "detail_summary", "expected_observation", "test_steps", ...按需可选字段 }], "done" }'
+          : undefined,
         doc_meta: {
           title: meta.title,
           sectionCount: meta.sectionCount,
@@ -335,6 +380,10 @@ module.exports = {
         },
         endpoints: (meta.endpoints || []).join('\n'),
         requirements_hint: [
+          fitnessPrimary,
+          `\n## 当前模板输出格式\n${templateOutputFormat}`,
+          '\n## 平台自动填入\n大类/主方案/主验证/模板等分类字段由测试平台入库时写入，Agent 勿在 testCases 中输出 dimension_id、category_major_id、scheme_primary_id、validation_primary_id、template_code、item_id。',
+          '\n## 字段规则\n仅 item_name、detail_summary、expected_observation、test_steps 为必填；其他字段按需输出，未涉及的 key 不要出现；已出现的 key 须有有效值。',
           quotaPrompt,
           (meta.requirements || [])
             .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)
@@ -376,7 +425,14 @@ module.exports = {
       }
 
       const output = payload.output || {};
-      const testCases = normalizeTestCases(output.testCases);
+      const fitness = payload.params?.action === 'generate_for_fitness';
+      let testCases = fitness
+        ? normalizeFitnessTestCases(output.testCases)
+        : normalizeTestCases(output.testCases);
+
+      if (fitness && testCases.length) {
+        testCases = testCases.filter(tc => auditItemDetailFields(tc).valid);
+      }
 
       const info = await store.insertRun(ctx, {
         doc_id: payload.params?.doc_id ?? null,
@@ -419,7 +475,8 @@ module.exports = {
      */
     async formatResponse(ctx, result) {
       const output = result.output || {};
-      const action = output.action || result.meta?.skill_action;
+      const params = result.params || {};
+      const action = params.action || output.action || result.meta?.skill_action;
 
       if (action === 'get') {
         return {
@@ -471,14 +528,21 @@ module.exports = {
         };
       }
 
-      let testCases = normalizeTestCases(output.testCases);
+      const fitness = action === 'generate_for_fitness'
+        || isFitnessMode({ input: params })
+        || isFitnessMode({ input: output });
+      let testCases = fitness
+        ? normalizeFitnessTestCases(output.testCases)
+        : normalizeTestCases(output.testCases);
       if (!testCases.length && Array.isArray(output.steps)) {
         const salvaged = [];
         for (const step of output.steps) {
-          salvaged.push(...salvageTestCasesArray(step.rawText || step.partialOutput || ''));
+          salvaged.push(...salvageTestCasesArray(step.rawText || step.partialOutput || '', fitness));
         }
         if (salvaged.length) {
-          testCases = normalizeTestCases(salvaged);
+          testCases = fitness
+            ? normalizeFitnessTestCases(salvaged)
+            : normalizeTestCases(salvaged);
         }
       }
       return {

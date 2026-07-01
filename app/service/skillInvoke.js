@@ -139,7 +139,7 @@ class SkillInvokeService extends Service {
 
     let response;
     if (typeof skill.callbacks.formatResponse === 'function') {
-      response = await skill.callbacks.formatResponse(ctx, result);
+      response = await skill.callbacks.formatResponse(ctx, { ...result, params });
     } else {
       response = {
         reply: result.text || '',

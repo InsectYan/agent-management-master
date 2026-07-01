@@ -86,7 +86,24 @@ function parseActions(md) {
 }
 
 /**
- * 根据 SKILL.md 与请求参数解析应执行的动作
+ * 判断请求是否满足 SKILL 必填参数（含常见别名）
+ * @param {Object} params
+ * @param {string} key
+ */
+function isParamPresent(params, key) {
+  const aliases = {
+    doc_content: [ 'doc_content', 'document_content', 'content' ],
+    doc_id: [ 'doc_id', 'document_id' ],
+    doc_title: [ 'doc_title', 'document_title', 'title' ],
+  };
+  const keys = aliases[key] || [ key ];
+  return keys.some(k => {
+    const v = params[k];
+    return v !== undefined && v !== null && v !== '';
+  });
+}
+
+/**
  * @param {SkillDoc|null} skillDoc
  * @param {Object} params - 请求参数
  * @param {Object} [defaults] - 默认动作映射，如 { GET: 'query' }
@@ -113,9 +130,8 @@ function resolveAction(skillDoc, params, defaults = {}) {
 
   if (actionDef?.requiredParams?.length) {
     for (const key of actionDef.requiredParams) {
-      if (params[key] === undefined || params[key] === null || params[key] === '') {
-        errors.push(`动作「${action}」缺少必填参数: ${key}`);
-      }
+      if (isParamPresent(params, key)) continue;
+      errors.push(`动作「${action}」缺少必填参数: ${key}`);
     }
   }
 

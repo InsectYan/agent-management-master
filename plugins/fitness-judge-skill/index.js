@@ -10,6 +10,7 @@ const {
   ruleBasedJudge,
   ruleBasedPreReview,
   ruleBasedExplain,
+  ruleBasedSummary,
 } = require('./lib/ruleFallback');
 
 function formatObservations(observations = []) {
@@ -124,6 +125,17 @@ module.exports = {
         };
       }
 
+      if (action === 'summary') {
+        const observations = params.observations || [];
+        return {
+          ...params,
+          action,
+          plan_id: params.plan_id,
+          plan_name: params.plan_name,
+          observations,
+        };
+      }
+
       const err = new Error(`不支持的动作: ${action}`);
       err.status = 400;
       throw err;
@@ -179,6 +191,27 @@ module.exports = {
           reply: markdown,
           output: { markdown, action: 'explain' },
           meta: { ...result.meta, action, run_id: output.run_id || params.run_id },
+        };
+      }
+
+      if (action === 'summary') {
+        const planName = params.plan_name || output.plan_name || `计划 #${params.plan_id || ''}`;
+        const observations = params.observations || params._observations || [];
+        let markdown = output.summary || output.markdown || result.text || '';
+        if (!markdown || needsRuleFallback(result)) {
+          markdown = ruleBasedSummary(planName, observations);
+        }
+        const passed = observations.filter(o => o.result_status === 'passed').length;
+        const total = observations.length;
+        return {
+          reply: markdown,
+          output: {
+            action: 'summary',
+            markdown,
+            pass_rate: total ? Math.round(100 * passed / total) : 0,
+            totals: { total, passed },
+          },
+          meta: { ...result.meta, action, plan_id: params.plan_id, fallback: needsRuleFallback(result) },
         };
       }
 

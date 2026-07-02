@@ -66,7 +66,7 @@ module.exports = {
   callbacks: {
     async beforeExecute(ctx, params) {
       const action = params.action || 'from_example';
-      const allowed = [ 'from_example', 'expand_matrix', 'gen_adversarial' ];
+      const allowed = [ 'from_example', 'expand_matrix', 'gen_adversarial', 'enrich_csv', 'enrich_samples' ];
       if (!allowed.includes(action)) {
         const err = new Error(`不支持的动作: ${action}`);
         err.status = 400;
@@ -87,6 +87,10 @@ module.exports = {
         test_cases_text: casesText,
         matrix_dims: params.matrix_dims || params.dimensions,
         sample_set_id: params.sample_set_id,
+        csv_text: params.csv_text || '',
+        items_text: Array.isArray(params.items)
+          ? params.items.map(i => `- ${i.item_id}: ${i.test_input_example || i.item_name || ''}`).join('\n')
+          : '',
         _params: params,
       };
     },

@@ -158,7 +158,66 @@ function genAdversarialRule(params) {
   return { samples, forbidden_patterns };
 }
 
+function parseCsvRows(csvText = '') {
+  const lines = String(csvText).trim().split(/\r?\n/).filter(Boolean);
+  if (!lines.length) return [];
+  const header = lines[0].split(',').map(s => s.trim().toLowerCase());
+  const pathIdx = header.indexOf('path');
+  const methodIdx = header.indexOf('method');
+  const statusIdx = header.findIndex(h => h === 'expect_status' || h === 'status');
+  const start = pathIdx >= 0 ? 1 : 0;
+  return lines.slice(start).map((line, i) => {
+    const cols = line.split(',').map(s => s.trim());
+    const path = pathIdx >= 0 ? cols[pathIdx] : cols[0];
+    const method = methodIdx >= 0 ? cols[methodIdx] : (cols[1] || 'GET');
+    const expect_status = statusIdx >= 0 ? Number(cols[statusIdx]) : Number(cols[2]) || 200;
+    return toSample({
+      path: path || '/health',
+      method: (method || 'GET').toUpperCase(),
+      expect_status,
+    }, i, { source: 'enrich_csv' });
+  });
+}
+
+function enrichCsvRule(params) {
+  const rows = parseCsvRows(params.csv_text || '');
+  if (rows.length) return { samples: rows, forbidden_patterns: [] };
+  return { samples: fromExampleRule(params), forbidden_patterns: [] };
+}
+
+function enrichSamplesRule(params) {
+  const items = params.items || [];
+  const samples = [];
+  items.forEach((item, idx) => {
+    const example = item.test_input_example || item.detail_summary || item.item_name || '';
+    const generated = fromExampleRule({
+      test_input_example: example,
+      scheme_id: params.scheme_id || 'TS-04-SET',
+      item_id: item.item_id,
+    });
+    generated.forEach((s, j) => {
+      samples.push({
+        ...s,
+        sort_order: samples.length,
+        metadata: {
+          ...(s.metadata || {}),
+          source_item_id: item.item_id,
+          batch_index: idx,
+          sub_index: j,
+        },
+      });
+    });
+  });
+  return { samples, forbidden_patterns: [] };
+}
+
 function generateRuleBased(action, params) {
+  if (action === 'enrich_csv') {
+    return enrichCsvRule(params);
+  }
+  if (action === 'enrich_samples') {
+    return enrichSamplesRule(params);
+  }
   if (action === 'expand_matrix') {
     return { samples: expandMatrixRule(params), forbidden_patterns: [] };
   }
@@ -172,6 +231,9 @@ module.exports = {
   fromExampleRule,
   expandMatrixRule,
   genAdversarialRule,
+  enrichCsvRule,
+  enrichSamplesRule,
   generateRuleBased,
   extractEndpoints,
+  parseCsvRows,
 };

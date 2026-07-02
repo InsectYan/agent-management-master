@@ -7,6 +7,7 @@
 | judge | rubric 语义判定 | rubric_id, observations[], threshold_json? |
 | explain | 运行失败解读 | run_id, observations[] |
 | pre_review | 人工评审 AI 预审 | materials (含 observations) |
+| summary | 测试计划 AI 摘要 | plan_id, plan_name, observations[] |
 | list-rubrics | 列出内置 rubric | — |
 
 ## judge 出参

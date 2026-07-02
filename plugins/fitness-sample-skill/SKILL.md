@@ -5,5 +5,7 @@
 | from_example | 从 test_input_example 生成 HTTP 样本 | samples[{ path, method, expect_status }] |
 | expand_matrix | TS-02 边界矩阵行 | matrix rows |
 | gen_adversarial | TS-07 对抗 cases | cases + forbidden_patterns |
+| enrich_csv | CSV 智能补全 | samples[] |
+| enrich_samples | 生成 job 批量补全 | samples[] |
 
 规则引擎见 `lib/sampleGenerator.js`；LLM 可用时优先 AI 生成，失败时自动降级。

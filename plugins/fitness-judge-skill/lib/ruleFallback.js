@@ -73,9 +73,39 @@ function ruleBasedExplain(runId, observations = []) {
   return lines.join('\n');
 }
 
+function ruleBasedSummary(planName, observations = []) {
+  const total = observations.length;
+  const passed = observations.filter(o => o.result_status === 'passed').length;
+  const failed = observations.filter(o => o.result_status === 'failed').length;
+  const pending = total - passed - failed;
+  const passRate = total ? Math.round(100 * passed / total) : 0;
+
+  const lines = [
+    `## 测试计划摘要 — ${planName || '未命名计划'}`,
+    '',
+    `- 用例总数: ${total}`,
+    `- 通过: ${passed} · 失败: ${failed} · 待执行: ${pending}`,
+    `- 通过率: ${passRate}%`,
+    '',
+    '### 结论',
+    passRate >= 80
+      ? '整体质量良好，可进入发版评审。'
+      : passRate >= 60
+        ? '存在未通过项，建议修复后复测。'
+        : '通过率偏低，不建议发版。',
+    '',
+    '### 明细（前 10 条）',
+    ...observations.slice(0, 10).map(o =>
+      `- ${o.item_id || '—'}: ${o.result_status || 'pending'}${o.validation_result ? ` (${o.validation_result})` : ''}`,
+    ),
+  ];
+  return lines.join('\n');
+}
+
 module.exports = {
   isObservationPass,
   ruleBasedJudge,
   ruleBasedPreReview,
   ruleBasedExplain,
+  ruleBasedSummary,
 };

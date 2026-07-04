@@ -1,8 +1,8 @@
 'use strict';
 
 function isObservationPass(obs) {
-  if (obs.pass === true || obs.passed === true || obs.verdict === 'pass') return true;
-  if (obs.pass === false || obs.passed === false || obs.verdict === 'fail') return false;
+  if (obs.pass === true || obs.passed === true || obs.verdict === 'pass' || obs.sub_verdict === 'pass') return true;
+  if (obs.pass === false || obs.passed === false || obs.verdict === 'fail' || obs.sub_verdict === 'fail') return false;
   const status = Number(obs.http_status);
   if (Number.isFinite(status)) return status >= 200 && status < 300;
   return false;
@@ -57,20 +57,34 @@ function ruleBasedPreReview(materials = {}, rubric = {}) {
   };
 }
 
-function ruleBasedExplain(runId, observations = []) {
+function ruleBasedExplain(runId, observations = [], runContext = {}) {
   const judge = ruleBasedJudge(observations, {}, { pass_threshold: 0.7 });
+  const ctx = runContext || {};
   const lines = [
-    `## Run #${runId || '—'} 解读（规则降级）`,
+    `## Run #${runId || '—'} 失败解读（规则降级）`,
     '',
-    `- 通过率: ${(judge.score * 100).toFixed(0)}%`,
-    `- 结论: ${judge.pass ? '整体通过' : '存在失败项'}`,
+    `- 运行状态: ${ctx.status ?? '—'} · 判定: ${ctx.verdict ?? '—'}`,
+    `- 方案/验证: ${ctx.scheme_id ?? '—'} / ${ctx.validation_id ?? '—'}`,
+    ctx.item_name ? `- 用例: ${ctx.item_id} · ${ctx.item_name}` : '',
+    ctx.expected_observation ? `- 期望观测: ${String(ctx.expected_observation).slice(0, 200)}` : '',
+    `- 子项: 通过 ${ctx.pass_count ?? 0} · 失败 ${ctx.fail_count ?? 0} · 共 ${ctx.total_count ?? observations.length}`,
+    `- 失败项通过率估算: ${(judge.score * 100).toFixed(0)}%`,
+    `- 结论: ${judge.pass ? '整体通过' : '存在失败项，需排查下列子项'}`,
     '',
-    '### 观测摘要',
-    ...observations.slice(0, 8).map((o, i) =>
-      `${i + 1}. [${isObservationPass(o) ? 'PASS' : 'FAIL'}] HTTP ${o.http_status ?? '—'} — ${o.input_summary || o.response_excerpt || '—'}`.slice(0, 100),
-    ),
+    '### 失败/观测明细',
+    ...observations.slice(0, 10).map((o, i) => {
+      const pass = o.pass === true || o.sub_verdict === 'pass' || o.verdict === 'pass';
+      const parts = [
+        `${i + 1}. [${pass ? 'PASS' : 'FAIL'}] #${o.sub_run_index ?? i}`,
+        `HTTP ${o.http_status ?? '—'}`,
+        o.input_summary || '',
+        o.response_excerpt || o.output_summary || '',
+      ].filter(Boolean);
+      if (o.assertion_failures) parts.push(`断言: ${o.assertion_failures}`);
+      return parts.join(' — ').slice(0, 220);
+    }),
   ];
-  return lines.join('\n');
+  return lines.filter(Boolean).join('\n');
 }
 
 function ruleBasedSummary(planName, observations = []) {

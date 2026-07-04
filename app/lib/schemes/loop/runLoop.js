@@ -257,6 +257,10 @@ async function runLoop(options) {
 
     emitStatus(hooks, { phase: 'loop', label: `Loop 第 ${step + 1}/${maxSteps} 步…` });
 
+    const perCallTimeout = llm.localOllama || llm.provider === 'ollama'
+      ? 0
+      : (loopConfig.llmTimeoutMs ?? 180000);
+
     let parsed;
     let rawText = '';
     try {
@@ -269,6 +273,7 @@ async function runLoop(options) {
         ],
         temperature: loopConfig.temperature ?? 0.5,
         maxTokens: loopConfig.maxTokens ?? 1024,
+        timeoutMs: perCallTimeout,
       });
       rawText = String(result.text || '').trim();
       if (typeof loopConfig.parseStepOutput === 'function') {

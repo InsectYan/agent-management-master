@@ -137,6 +137,7 @@ function defToRuntime(def) {
     model: def.localOllama ? ollamaModel(def) : def.model,
     baseUrl: resolveBaseUrl(def),
     apiKey,
+    localOllama: Boolean(def.localOllama),
   };
 }
 
@@ -201,6 +202,7 @@ function resolveLlmProfile(profileId, appSettings) {
     model: appSettings?.llm?.ollamaModel || 'qwen3.6:latest',
     baseUrl: appSettings?.llm?.ollamaBaseUrl || 'http://localhost:11434/v1',
     apiKey: appSettings?.llm?.ollamaApiKeyPlaceholder || 'ollama',
+    localOllama: true,
   };
 }
 

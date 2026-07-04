@@ -68,11 +68,20 @@ function emitStatus(hooks, payload) {
  * @returns {Promise<{ text: string, usage?: Record<string, number>, raw: unknown }>}
  */
 async function llmChat(options) {
-  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks } = options;
+  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs } = options;
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
+  const isLocalOllama = llm.localOllama || llm.provider === 'ollama';
+  const effectiveTimeout = timeoutMs === 0 || isLocalOllama
+    ? 0
+    : (Number(timeoutMs) > 0 ? Number(timeoutMs) : 180000);
 
   emitStatus(hooks, { phase: 'llm', label: '正在调用模型…' });
+
+  const controller = effectiveTimeout > 0 ? new AbortController() : null;
+  const timer = effectiveTimeout > 0
+    ? setTimeout(() => controller.abort(), effectiveTimeout)
+    : null;
 
   let res;
   try {
@@ -89,11 +98,19 @@ async function llmChat(options) {
         max_tokens: maxTokens,
         stream: false,
       }),
+      signal: controller?.signal,
     });
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(
+        `LLM 调用超时（${effectiveTimeout}ms）（profile=${llm.profileId}, model=${llm.model}, base=${base}）`,
+      );
+    }
     const cause = err?.cause?.message || err?.cause?.code || '';
     const detail = cause ? `${err.message}: ${cause}` : err.message;
     throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   const raw = await res.json().catch(() => ({}));

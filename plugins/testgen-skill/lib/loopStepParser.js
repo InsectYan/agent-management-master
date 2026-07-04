@@ -173,6 +173,16 @@ function buildStepDirective(ctx = {}) {
   }
   if (phase === 'functional' || phase === 'edge') {
     const related = quotas.filter(q => q.phase === phase);
+    const batchSize = Number(ctx.input?.options?.batch_size || ctx.input?.options?.scheme_target?.count || 0);
+    const regenCount = Number(ctx.input?.options?.regenerate_count || 0);
+    const existingCtx = ctx.input?.existing_cases_context || ctx.input?.options?.existing_cases_context || '';
+    if (existingCtx) {
+      lines.push('以下用例已通过平台审查，禁止重复生成相同或高度相似主题：');
+      lines.push(existingCtx);
+    }
+    if (batchSize > 0) {
+      lines.push(`本批仅生成 ${regenCount > 0 ? regenCount : batchSize} 条，勿超出；同一方案/验证不跨批。`);
+    }
     if (related.length) {
       for (const q of related) {
         lines.push(`${q.label}：本步或后续步累计至少 ${q.count} 条 type="${q.agentType}" 用例。`);
@@ -188,7 +198,11 @@ function buildStepDirective(ctx = {}) {
   }
   if (phase === 'review') {
     if (fitness) {
-      lines.push('review 阶段：合并去重；确保每条含 item_name/detail_summary/expected_observation/test_steps；');
+      lines.push('review 阶段：逐条校验 testCases 必填字段（item_name/detail_summary/expected_observation/test_steps）；');
+      lines.push('字段合规的保留，不合规的从 testCases 中剔除；');
+      if (ctx.input?.existing_cases_context) {
+        lines.push('已通过审查的用例见 existing_cases_context，输出时勿重复；');
+      }
       lines.push('仅校验上述必填字段，不要求补全 HTTP 或 config_json；done=true, continue=false。');
     } else {
       lines.push('review 阶段：合并去重；确保每条含 id/title/steps/expected；done=true。');

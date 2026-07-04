@@ -100,6 +100,7 @@ module.exports = {
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
       maxTokens: 4096,
+      llmTimeoutMs: Number(process.env.TESTGEN_LLM_TIMEOUT_MS || 180000),
       docContentMaxLen: 8000,
       stepPhases: STEP_PHASES,
       enforcePhaseByStep: true,
@@ -135,6 +136,7 @@ module.exports = {
       userContextFields: [
         'fitness_primary_context',
         'template_output_format',
+        'existing_cases_context',
         'doc_meta',
         'endpoints',
         'requirements_hint',
@@ -355,6 +357,10 @@ module.exports = {
         }
       }
 
+      const existingCasesContext = params.existing_cases_context
+        || params.options?.existing_cases_context
+        || '';
+
       return {
         action: params.action === 'generate_for_fitness' ? 'generate_for_fitness' : 'generate',
         topic: params.topic || params.doc_title,
@@ -368,6 +374,7 @@ module.exports = {
         template_code: templateCode,
         fitness_primary_context: fitnessPrimary,
         template_output_format: templateOutputFormat,
+        existing_cases_context: existingCasesContext,
         loop_system_prompt_file: isFitness ? 'fitness-loop-system.md' : undefined,
         loop_json_schema_hint: isFitness
           ? '{ "continue", "phase", "note", "summary", "coverage_notes", "testCases": [{ "item_name", "detail_summary", "expected_observation", "test_steps", ...按需可选字段 }], "done" }'

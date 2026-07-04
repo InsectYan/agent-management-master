@@ -15,13 +15,29 @@ const {
 
 function formatObservations(observations = []) {
   return observations.map((o, i) => [
-    `### 子项 #${o.sub_run_index ?? i}`,
+    `### 子项 #${o.sub_run_index ?? i} · ${o.sub_verdict || (o.pass ? 'pass' : o.verdict || '—')}`,
     `- HTTP: ${o.http_status ?? '—'}`,
     `- 输入: ${o.input_summary || '—'}`,
-    `- 期望提示: ${o.expected_hint || '—'}`,
-    `- 响应摘要: ${o.response_excerpt || '—'}`,
-    o.journey_summary ? `- Journey: ${JSON.stringify(o.journey_summary)}` : '',
+    `- 期望观测: ${o.expected_hint || '—'}`,
+    `- 响应摘要: ${o.response_excerpt || o.output_summary || '—'}`,
+    o.assertion_failures ? `- 断言失败: ${o.assertion_failures}` : '',
+    o.error_message ? `- 运行错误: ${o.error_message}` : '',
+    o.journey_summary ? `- Journey: ${JSON.stringify(o.journey_summary).slice(0, 600)}` : '',
   ].filter(Boolean).join('\n')).join('\n\n');
+}
+
+function formatRunContext(ctx = {}) {
+  if (!ctx || !Object.keys(ctx).length) return '';
+  return [
+    '## 运行上下文',
+    `- Run 状态: ${ctx.status ?? '—'} · 判定: ${ctx.verdict ?? '—'}`,
+    `- 方案/验证: ${ctx.scheme_id ?? '—'} / ${ctx.validation_id ?? '—'}`,
+    `- 用例: ${ctx.item_id ?? '—'} ${ctx.item_name ? `· ${ctx.item_name}` : ''}`,
+    ctx.detail_summary ? `- 用例摘要: ${String(ctx.detail_summary).slice(0, 300)}` : '',
+    ctx.expected_observation ? `- 期望观测: ${String(ctx.expected_observation).slice(0, 400)}` : '',
+    `- 子项统计: 通过 ${ctx.pass_count ?? 0} / 失败 ${ctx.fail_count ?? 0} / 共 ${ctx.total_count ?? 0}`,
+    ctx.error_message ? `- Run 级错误: ${ctx.error_message}` : '',
+  ].filter(Boolean).join('\n');
 }
 
 function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
@@ -116,12 +132,20 @@ module.exports = {
       }
 
       if (action === 'explain') {
+        const observations = params.observations || [];
+        if (!Array.isArray(observations) || !observations.length) {
+          const err = new Error('explain 缺少 observations[]');
+          err.status = 400;
+          throw err;
+        }
         return {
           ...params,
           action,
           run_id: params.run_id,
           item_id: params.item_id,
-          observations: params.observations || [],
+          observations,
+          run_context: params.run_context || {},
+          focus: params.focus || 'failed',
         };
       }
 
@@ -149,23 +173,28 @@ module.exports = {
       const rubric = params.rubric || getRubric(params.rubric_id);
       const observations = params.observations || params.materials?.observations || [];
       const observationsText = formatObservations(observations);
+      const runContextText = params.action === 'explain'
+        ? formatRunContext(params.run_context)
+        : '';
 
       return {
         action: params.action,
         run_id: params.run_id,
         item_id: params.item_id,
-        rubric_id: params.rubric_id || rubric.name,
-        rubric: {
+        rubric_id: params.rubric_id || rubric?.name,
+        rubric: rubric ? {
           name: rubric.name,
           dimensions: rubric.dimensions,
           pass_threshold: rubric.pass_threshold,
           criteria: rubric.prompt,
-        },
-        observations_text: observationsText,
+        } : undefined,
+        observations_text: [ runContextText, observationsText ].filter(Boolean).join('\n\n'),
         materials_text: params.materials ? JSON.stringify(params.materials, null, 2).slice(0, 4000) : '',
-        threshold_json: params.threshold_json || params.materials?.threshold_json || {},
+        threshold_json: params.threshold_json || params.materials?.threshold_json || params.run_context?.threshold_json || {},
+        focus: params.focus,
         _observations: observations,
         _materials: params.materials,
+        _run_context: params.run_context,
       };
     },
 
@@ -185,7 +214,11 @@ module.exports = {
       if (action === 'explain') {
         let markdown = output.summary || output.markdown || result.text || '';
         if (!markdown || needsRuleFallback(result)) {
-          markdown = ruleBasedExplain(params.run_id || output.run_id, params._observations || params.observations || []);
+          markdown = ruleBasedExplain(
+            params.run_id || output.run_id,
+            params._observations || params.observations || [],
+            params._run_context || params.run_context,
+          );
         }
         return {
           reply: markdown,

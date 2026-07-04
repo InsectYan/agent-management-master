@@ -74,20 +74,27 @@ async function llmChat(options) {
 
   emitStatus(hooks, { phase: 'llm', label: '正在调用模型…' });
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
-    },
-    body: JSON.stringify({
-      model: llm.model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      stream: false,
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
+      },
+      body: JSON.stringify({
+        model: llm.model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: false,
+      }),
+    });
+  } catch (err) {
+    const cause = err?.cause?.message || err?.cause?.code || '';
+    const detail = cause ? `${err.message}: ${cause}` : err.message;
+    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+  }
 
   const raw = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -116,20 +123,27 @@ async function llmChatStream(options) {
 
   emitStatus(hooks, { phase: 'llm', label: '正在流式生成…' });
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
-    },
-    body: JSON.stringify({
-      model: llm.model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      stream: true,
-    }),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
+      },
+      body: JSON.stringify({
+        model: llm.model,
+        messages,
+        temperature,
+        max_tokens: maxTokens,
+        stream: true,
+      }),
+    });
+  } catch (err) {
+    const cause = err?.cause?.message || err?.cause?.code || '';
+    const detail = cause ? `${err.message}: ${cause}` : err.message;
+    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+  }
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => '');

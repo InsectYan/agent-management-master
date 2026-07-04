@@ -300,7 +300,8 @@ async function runLoop(options) {
       state.phase = expectedPhase;
     }
 
-    const mergedCases = Array.isArray(state.testCases) ? state.testCases : [];
+    const casesKey = loopConfig.casesArrayKey || 'testCases';
+    const mergedCases = Array.isArray(state[casesKey]) ? state[casesKey] : [];
     if (loopConfig.blockDoneWithoutCases && parsed.done && !mergedCases.length && step < maxSteps - 1) {
       parsed.done = false;
       parsed.continue = true;

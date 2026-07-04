@@ -53,6 +53,14 @@ const CATALOG = [
     baseUrl: 'https://api.deepseek.com/v1',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
   },
+  {
+    id: 'deepseek-reasoner',
+    label: 'DeepSeek · deepseek-reasoner',
+    provider: 'deepseek',
+    model: 'deepseek-reasoner',
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKeyEnv: 'DEEPSEEK_API_KEY',
+  },
 ];
 
 /**
@@ -170,7 +178,12 @@ function getPlatformDefaultProfileId(appSettings) {
  * @returns {import('./types').LlmRuntimeConfig}
  */
 function resolveLlmProfile(profileId, appSettings) {
-  const id = (profileId || '').trim() || getPlatformDefaultProfileId(appSettings);
+  const aliases = {
+    'deepseek-reasoner': 'deepseek-reasoner',
+    deepseek: 'deepseek-chat',
+  };
+  const normalizedId = (profileId || '').trim();
+  const id = aliases[normalizedId] || normalizedId || getPlatformDefaultProfileId(appSettings);
   const def = CATALOG.find(d => d.id === id);
   if (def && profileAvailable(def)) return defToRuntime(def);
 

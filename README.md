@@ -84,6 +84,25 @@ docs/schemes/      # 各方案说明文档
 
 本地数据库默认 SQLite：`data/agent.sqlite`（见 `.env.example` 的 `SQLITE_PATH`）。
 
+## Skill 插件一览
+
+| Skill | 用途 | 适用项目 |
+|-------|------|----------|
+| **testgen-skill** | 测试用例/配置 JSON 生成、估算 | testgen-sub、fitness-agent |
+| **fitness-config-skill** | 按模板生成 ft_run 配置草稿 | testgen-sub（fitness-agent 各 TS 模板） |
+| **fitness-sample-skill** | 样本集/矩阵/对抗集生成 | testgen-sub（TS-04-SET、TS-07-NEG 等） |
+| **fitness-judge-skill** | 语义 judge / explain / pre_review / summary | testgen-sub（TS-10-MAN、E6 LLM Judge） |
+| **fitness-observation-match-skill** | 期望观测 vs API 响应文案比对 | testgen-sub（**TPL-API-CTX** 内容验证） |
+| **fitness-explore-skill** | 探索式多步链路规划 | testgen-sub（TS-05 + agent_hook.explore） |
+| **api-template-skill** | 接口模板生成与维护 | testgen-sub 接口模板管理 |
+| **perf-bottleneck-skill** | 压测结果瓶颈分析 | testgen-sub（TS-09-LOAD） |
+| **note-skill** | Pi 记事对话（示例） | 通用演示 |
+| **weather-skill** | LangChain 天气（示例） | 通用演示 |
+| **research-skill** | Loop 多步调研（示例） | 通用演示 |
+| **qa-skill** | ReAct 工具问答（示例） | 通用演示 |
+
+各 Skill 详细契约见 `plugins/{name}-skill/SKILL.md`。
+
 ## 新增 Agent 方案
 
 1. 实现 `app/lib/schemes/{name}/`

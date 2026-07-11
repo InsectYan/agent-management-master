@@ -449,6 +449,9 @@ module.exports = {
           `\n## 当前模板输出格式\n${templateOutputFormat}`,
           '\n## 平台自动填入\n大类/主方案/主验证/模板等分类字段由测试平台入库时写入，Agent 勿在 testCases 中输出 dimension_id、category_major_id、scheme_primary_id、validation_primary_id、template_code、item_id。',
           '\n## 字段规则\n仅 item_name、detail_summary、expected_observation、test_steps 为必填；其他字段按需输出，未涉及的 key 不要出现；已出现的 key 须有有效值。',
+          templateCode === 'TPL-DET'
+            ? '\n## TS-01-DET 可执行性\n若 test_steps 涉及 HTTP 接口，必须输出 endpoint_path 与 http_method（可从文档接口清单提取）；否则用例无法自动执行。'
+            : null,
           quotaPrompt,
           (meta.requirements || [])
             .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)

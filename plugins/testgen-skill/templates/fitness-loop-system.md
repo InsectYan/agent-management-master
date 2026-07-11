@@ -40,7 +40,9 @@
 | `config_json` | 形状见 `template_output_format`；**可不输出**，平台会按模板缺省补齐 |
 | `threshold_json` | 同上；多数模板可为 `{}` 或省略 |
 
-**规则**：JSON 里**未出现的 key 不必生成**；**已出现的 key 须有有效值**（禁止 `null`、空字符串、空对象占位）。平台大量用例的 `endpoint_path`、`test_input_example` 为 null——非接口类测试不必强行填写。
+**规则**：JSON 里**未出现的 key 不必生成**；**已出现的 key 须有有效值**（禁止 `null`、空字符串、空对象占位）。
+
+**TS-01-DET / TPL-DET 可执行性**：若 `test_steps` 涉及 HTTP 接口调用（含 GET/POST 等动词或 `/api/...` 路径），**必须**输出 `endpoint_path` 与 `http_method`，否则平台无法自动执行。纯单元/人工/E2E 场景可不填 HTTP 字段，但须写清 `automation_command` 或接受仅人工执行。
 
 ## 参考：平台典型非接口用例
 

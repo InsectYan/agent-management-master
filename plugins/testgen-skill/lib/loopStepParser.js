@@ -191,7 +191,8 @@ function buildStepDirective(ctx = {}) {
     if (fitness) {
       lines.push('本步 testCases 至少 1 条；每条必填 item_name、detail_summary、expected_observation、test_steps（字符串数组）。');
       lines.push('其他字段按需输出：未涉及的 key 不要出现；已出现的 key 须有有效值（勿写 null/空字符串占位）。');
-      lines.push('HTTP/config_json/threshold_json 仅在文档或 template_output_format 涉及时填写；平台可缺省补齐。');
+      lines.push('HTTP/config_json/threshold_json 仅在文档或 template_output_format 涉及时填写；');
+      lines.push('若 test_steps 含 HTTP 调用（如 POST submit、/api/...），须输出 endpoint_path 与 http_method，否则 TS-01-DET 无法执行。');
     } else {
       lines.push('本步 testCases 至少 1 条，且每条含 id/title/type/steps/expected；若无则 done=false。');
     }

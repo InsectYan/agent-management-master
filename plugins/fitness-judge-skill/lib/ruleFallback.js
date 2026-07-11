@@ -57,14 +57,33 @@ function ruleBasedPreReview(materials = {}, rubric = {}) {
   };
 }
 
+function templateTroubleshooting(templateCode) {
+  const map = {
+    'TPL-DET': '检查单次 HTTP/CLI 响应与期望字段是否一致',
+    'TPL-BND': '核对失败边界行的输入与期望区间',
+    'TPL-REP': '对比重复样本间偏差，是否随机波动或系统性失败',
+    'TPL-SET': '定位固定样本集中失败 index，检查样本数据',
+    'TPL-CHAIN': '检查链路 extract 变量、逐步 HTTP 状态与断言',
+    'TPL-API-CTX': '检查 preflight→submit→poll 各阶段与语义文案比对',
+    'TPL-PAIR': '对比 A/B 输出差异是否超出对照阈值',
+    'TPL-NEG': '确认注入 payload 生效且安全策略符合预期',
+    'TPL-OBS': '检查 trace/journey 可观测项是否缺失',
+    'TPL-LOAD': '核对 p95、错误率、吞吐与 threshold_json',
+    'TPL-MAN': '补齐人工评审材料或调整 blocking 项',
+  };
+  return map[templateCode] || '对照期望观测与 assertion_failures 排查';
+}
+
 function ruleBasedExplain(runId, observations = [], runContext = {}) {
   const judge = ruleBasedJudge(observations, {}, { pass_threshold: 0.7 });
   const ctx = runContext || {};
+  const templateCode = ctx.template_code || observations.find(o => o.template_code)?.template_code || '';
   const lines = [
     `## Run #${runId || '—'} 失败解读（规则降级）`,
     '',
     `- 运行状态: ${ctx.status ?? '—'} · 判定: ${ctx.verdict ?? '—'}`,
     `- 方案/验证: ${ctx.scheme_id ?? '—'} / ${ctx.validation_id ?? '—'}`,
+    templateCode ? `- 配置模板: ${templateCode}${ctx.template_name ? ` · ${ctx.template_name}` : ''}` : '',
     ctx.item_name ? `- 用例: ${ctx.item_id} · ${ctx.item_name}` : '',
     ctx.expected_observation ? `- 期望观测: ${String(ctx.expected_observation).slice(0, 200)}` : '',
     `- 子项: 通过 ${ctx.pass_count ?? 0} · 失败 ${ctx.fail_count ?? 0} · 共 ${ctx.total_count ?? observations.length}`,
@@ -72,18 +91,31 @@ function ruleBasedExplain(runId, observations = [], runContext = {}) {
     `- 结论: ${judge.pass ? '整体通过' : '存在失败项，需排查下列子项'}`,
     '',
     '### 失败/观测明细',
-    ...observations.slice(0, 10).map((o, i) => {
+    ...observations.slice(0, 12).map((o, i) => {
       const pass = o.pass === true || o.sub_verdict === 'pass' || o.verdict === 'pass';
       const parts = [
         `${i + 1}. [${pass ? 'PASS' : 'FAIL'}] #${o.sub_run_index ?? i}`,
+        o.runner_type ? `[${o.runner_type}]` : '',
+        o.template_code ? `[${o.template_code}]` : '',
         `HTTP ${o.http_status ?? '—'}`,
         o.input_summary || '',
         o.response_excerpt || o.output_summary || '',
       ].filter(Boolean);
+      if (o.template_hints) parts.push(`线索: ${o.template_hints}`);
+      if (o.semantic_summary) parts.push(`语义: ${o.semantic_summary}`);
       if (o.assertion_failures) parts.push(`断言: ${o.assertion_failures}`);
-      return parts.join(' — ').slice(0, 220);
+      if (o.error_message) parts.push(`错误: ${String(o.error_message).slice(0, 80)}`);
+      return parts.join(' — ').slice(0, 280);
     }),
+    '',
+    '### 排查建议',
+    `- ${templateTroubleshooting(templateCode)}`,
+    '- 在运行控制台查看子项 artifacts（HTTP body / CLI stderr / poll 阶段）',
+    '- 核对执行环境与 threshold_json 阈值配置',
   ];
+  if (ctx.error_message) {
+    lines.splice(8, 0, `- Run 级错误: ${ctx.error_message}`);
+  }
   return lines.filter(Boolean).join('\n');
 }
 

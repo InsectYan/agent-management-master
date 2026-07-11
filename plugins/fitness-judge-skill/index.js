@@ -1,6 +1,6 @@
 /**
  * @file fitness-judge-skill/index.js
- * @description Fitness 语义判定 Agent（react 短步）
+ * @description Fitness 语义判定 Agent（Loop 短步）
  */
 
 'use strict';
@@ -16,13 +16,20 @@ const {
 function formatObservations(observations = []) {
   return observations.map((o, i) => [
     `### 子项 #${o.sub_run_index ?? i} · ${o.sub_verdict || (o.pass ? 'pass' : o.verdict || '—')}`,
-    `- HTTP: ${o.http_status ?? '—'}`,
+    o.template_code ? `- 模板: ${o.template_code}${o.scheme_id ? ` (${o.scheme_id})` : ''}` : '',
+    o.runner_type ? `- Runner: ${o.runner_type}` : '',
+    `- HTTP: ${o.http_status ?? '—'}${o.poll_status != null ? ` · poll HTTP ${o.poll_status}` : ''}`,
     `- 输入: ${o.input_summary || '—'}`,
     `- 期望观测: ${o.expected_hint || '—'}`,
     `- 响应摘要: ${o.response_excerpt || o.output_summary || '—'}`,
+    o.template_hints ? `- 模板线索: ${o.template_hints}` : '',
+    o.semantic_summary ? `- 语义比对: ${o.semantic_summary}` : '',
+    o.perf_summary ? `- 压测指标: ${o.perf_summary}` : '',
+    o.assertion_types?.length ? `- 断言类型: ${o.assertion_types.join(', ')}` : '',
     o.assertion_failures ? `- 断言失败: ${o.assertion_failures}` : '',
     o.error_message ? `- 运行错误: ${o.error_message}` : '',
     o.journey_summary ? `- Journey: ${JSON.stringify(o.journey_summary).slice(0, 600)}` : '',
+    o.cli_command ? `- CLI: ${o.cli_command} (exit ${o.cli_exit_code ?? '—'})` : '',
   ].filter(Boolean).join('\n')).join('\n\n');
 }
 
@@ -32,12 +39,98 @@ function formatRunContext(ctx = {}) {
     '## 运行上下文',
     `- Run 状态: ${ctx.status ?? '—'} · 判定: ${ctx.verdict ?? '—'}`,
     `- 方案/验证: ${ctx.scheme_id ?? '—'} / ${ctx.validation_id ?? '—'}`,
+    ctx.template_code ? `- 配置模板: ${ctx.template_code}${ctx.template_name ? ` · ${ctx.template_name}` : ''}` : '',
     `- 用例: ${ctx.item_id ?? '—'} ${ctx.item_name ? `· ${ctx.item_name}` : ''}`,
+    ctx.category_major_id ? `- 大类: ${ctx.category_major_id}` : '',
     ctx.detail_summary ? `- 用例摘要: ${String(ctx.detail_summary).slice(0, 300)}` : '',
     ctx.expected_observation ? `- 期望观测: ${String(ctx.expected_observation).slice(0, 400)}` : '',
     `- 子项统计: 通过 ${ctx.pass_count ?? 0} / 失败 ${ctx.fail_count ?? 0} / 共 ${ctx.total_count ?? 0}`,
     ctx.error_message ? `- Run 级错误: ${ctx.error_message}` : '',
   ].filter(Boolean).join('\n');
+}
+
+function buildLoopTopic(action, params) {
+  if (action === 'explain') {
+    return `fitness_run_explain_${params.run_id || params.item_id || 'unknown'}`;
+  }
+  if (action === 'pre_review') {
+    return `fitness_pre_review_${params.run_id || params.item_id || 'unknown'}`;
+  }
+  if (action === 'summary') {
+    return `fitness_plan_summary_${params.plan_id || 'unknown'}`;
+  }
+  if (action === 'judge') {
+    return `fitness_judge_${params.rubric_id || 'default'}`;
+  }
+  return `fitness_judge_${action}`;
+}
+
+function jsonSchemaForAction(action) {
+  if (action === 'explain') {
+    return '{ "done": true, "continue": false, "summary": "Markdown 解读正文" }';
+  }
+  if (action === 'summary') {
+    return '{ "done": true, "continue": false, "summary": "Markdown 计划摘要" }';
+  }
+  if (action === 'pre_review') {
+    return '{ "done": true, "continue": false, "score": number, "checklist": [{ "item", "ok", "note" }], "summary": string }';
+  }
+  return '{ "continue": false, "done": true, "pass": boolean, "score": number, "reasons": string[], "summary": string }';
+}
+
+function tryParseJsonObject(text) {
+  const raw = String(text || '').trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try {
+      return JSON.parse(m[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
+function parseLoopStepOutput(rawText, ctx = {}) {
+  const text = String(rawText || '').trim();
+  const action = ctx.input?.action;
+  const parsed = tryParseJsonObject(text);
+
+  if (parsed?.summary) {
+    return { ...parsed, done: parsed.done !== false, continue: false };
+  }
+
+  if ((action === 'explain' || action === 'summary') && text.length > 48) {
+    const looksLikeMd = /^#|^- |^\*\*|^## /m.test(text) || text.includes('\n');
+    if (looksLikeMd || !text.startsWith('{')) {
+      return { summary: text, done: true, continue: false };
+    }
+  }
+
+  if (parsed) return parsed;
+
+  return {
+    continue: false,
+    note: text.slice(0, 200),
+    summary: text.slice(0, 4000),
+    done: text.length > 0,
+  };
+}
+
+function needsRuleFallback(result) {
+  const output = result.output || {};
+  const meta = result.meta || {};
+  if (meta.stoppedReason === 'no_llm' || output.stoppedReason === 'no_llm') return true;
+  if (output.error === 'missing_question') return true;
+  const text = String(result.text || output.summary || '').trim();
+  if (!text) return true;
+  if (/^已完成 \d+ 步迭代，主题：/.test(text)) return true;
+  if (text.length < 24 && !output.summary) return true;
+  if (!result.text && output.score == null && output.pass == null && !output.summary) return true;
+  return /占位|请配置 LLM|no_llm|missing_question|请提供 message 或 question/i.test(text);
 }
 
 function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
@@ -52,20 +145,11 @@ function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
   };
 }
 
-function needsRuleFallback(result) {
-  const output = result.output || {};
-  const meta = result.meta || {};
-  if (meta.stoppedReason === 'no_llm' || output.stoppedReason === 'no_llm') return true;
-  if (!result.text && output.score == null && output.pass == null) return true;
-  const text = result.text || '';
-  return /占位|请配置 LLM|no_llm/i.test(text);
-}
-
 module.exports = {
   name: 'fitness-judge-skill',
-  version: '1.0.0',
-  description: 'Fitness 语义判定 — judge / explain / pre_review',
-  scheme: 'react',
+  version: '1.1.0',
+  description: 'Fitness 语义判定 — judge / explain / pre_review / summary',
+  scheme: 'loop',
   routes: [
     {
       path: '/api/skills/fitness-judge',
@@ -78,14 +162,31 @@ module.exports = {
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'judge' },
-    react: {
+    loop: {
       maxSteps: 2,
       stopWhen: 'llm-done',
       systemPromptFile: 'judge-system.md',
       temperature: 0.2,
       maxTokens: 2048,
-      jsonSchemaHint: '{ "continue": boolean, "done": boolean, "pass": boolean, "score": number, "reasons": string[], "summary": string, "checklist": [{ "item", "ok", "note" }] }',
-      userContextFields: [ 'action', 'rubric', 'observations_text', 'run_id', 'item_id', 'materials_text' ],
+      stateMerge: {
+        summary: 'replace',
+        reasons: 'replace',
+        pass: 'replace',
+        score: 'replace',
+        checklist: 'replace',
+      },
+      initialState: { summary: '', reasons: [] },
+      parseStepOutput: parseLoopStepOutput,
+      userContextFields: [
+        'action',
+        'rubric',
+        'observations_text',
+        'run_id',
+        'item_id',
+        'materials_text',
+        'focus',
+        'threshold_json',
+      ],
     },
   },
   callbacks: {
@@ -170,15 +271,19 @@ module.exports = {
         return { action: 'list-rubrics', rubrics: params.rubrics || listRubrics() };
       }
 
+      const action = params.action || 'judge';
       const rubric = params.rubric || getRubric(params.rubric_id);
       const observations = params.observations || params.materials?.observations || [];
       const observationsText = formatObservations(observations);
-      const runContextText = params.action === 'explain'
+      const runContextText = action === 'explain'
         ? formatRunContext(params.run_context)
         : '';
+      const topic = buildLoopTopic(action, params);
 
       return {
-        action: params.action,
+        action,
+        topic,
+        message: topic,
         run_id: params.run_id,
         item_id: params.item_id,
         rubric_id: params.rubric_id || rubric?.name,
@@ -192,6 +297,7 @@ module.exports = {
         materials_text: params.materials ? JSON.stringify(params.materials, null, 2).slice(0, 4000) : '',
         threshold_json: params.threshold_json || params.materials?.threshold_json || params.run_context?.threshold_json || {},
         focus: params.focus,
+        loop_json_schema_hint: jsonSchemaForAction(action),
         _observations: observations,
         _materials: params.materials,
         _run_context: params.run_context,
@@ -201,7 +307,7 @@ module.exports = {
     async formatResponse(ctx, result) {
       const output = result.output || {};
       const action = output.action || result.meta?.skill_action || 'judge';
-      const params = result.meta?.params || {};
+      const params = result.params || result.meta?.params || {};
 
       if (action === 'list-rubrics') {
         return {
@@ -219,11 +325,22 @@ module.exports = {
             params._observations || params.observations || [],
             params._run_context || params.run_context,
           );
+        } else if (/^已完成 \d+ 步迭代，主题：/.test(markdown)) {
+          markdown = ruleBasedExplain(
+            params.run_id || output.run_id,
+            params._observations || params.observations || [],
+            params._run_context || params.run_context,
+          );
         }
         return {
           reply: markdown,
           output: { markdown, action: 'explain' },
-          meta: { ...result.meta, action, run_id: output.run_id || params.run_id },
+          meta: {
+            ...result.meta,
+            action,
+            run_id: output.run_id || params.run_id,
+            fallback: needsRuleFallback(result) || /^已完成 \d+ 步迭代，主题：/.test(result.text || ''),
+          },
         };
       }
 

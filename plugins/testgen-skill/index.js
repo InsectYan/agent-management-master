@@ -28,6 +28,7 @@ const {
 } = require('./lib/templateOutputFormats');
 const { auditItemDetailFields, normalizeFitnessTestCases } = require('./lib/fitnessFieldSchema');
 const { isFitnessMode } = require('./lib/loopStepParser');
+const { runEstimateCaseCount } = require('./lib/caseCountEstimator');
 
 const SKILL_DIR = __dirname;
 
@@ -101,6 +102,9 @@ module.exports = {
       temperature: 0.4,
       maxTokens: 4096,
       llmTimeoutMs: Number(process.env.TESTGEN_LLM_TIMEOUT_MS || 180000),
+      estimateDocPreviewLen: 3500,
+      estimateLlmTimeoutMs: Number(process.env.TESTGEN_ESTIMATE_LLM_TIMEOUT_MS || 45000),
+      runEstimateCaseCount,
       docContentMaxLen: 8000,
       stepPhases: STEP_PHASES,
       enforcePhaseByStep: true,
@@ -213,6 +217,44 @@ module.exports = {
         return { ...params, action, patch_result: patch };
       }
 
+      if (action === 'estimate_case_count') {
+        let docContent = params.doc_content || params.document_content || params.content || '';
+        let docTitle = params.doc_title || params.title || params.document_title || '';
+        const docId = params.doc_id ? Number(params.doc_id) : null;
+
+        if (!docContent && params.doc_path) {
+          const loaded = loadDocumentFile(SKILL_DIR, params.doc_path);
+          docContent = loaded.content;
+        }
+
+        if (!docContent && docId) {
+          let doc = await store.getDocument(ctx, docId);
+          if (!doc) doc = await bffClient.fetchDocument(ctx, docId);
+          if (!doc) {
+            const err = new Error(`文档不存在: doc_id=${docId}`);
+            err.status = 404;
+            throw err;
+          }
+          docContent = doc.content;
+          docTitle = docTitle || doc.title;
+        }
+
+        if (!docContent.trim()) {
+          const err = new Error('estimate_case_count 需提供 document_content、doc_id 或 doc_path');
+          err.status = 400;
+          throw err;
+        }
+
+        return {
+          ...params,
+          action: 'estimate_case_count',
+          doc_content: docContent,
+          doc_title: docTitle || '文档',
+          document_type: params.document_type,
+          options: params.options || {},
+        };
+      }
+
       let docContent = params.doc_content || params.document_content || params.content || '';
       let docTitle = params.doc_title || params.title || params.document_title || '';
       let docId = params.doc_id ? Number(params.doc_id) : null;
@@ -311,6 +353,22 @@ module.exports = {
 
       if ([ 'enrich_samples', 'sync_to_item' ].includes(params.action)) {
         return { action: params.action, ...params };
+      }
+
+      if (params.action === 'estimate_case_count') {
+        const meta = parseDocument(params.doc_content, { title: params.doc_title });
+        const schemeTargets = params.options?.scheme_targets || [];
+        const configuredTotal = schemeTargets.reduce((sum, t) => sum + (Number(t.count) || 5), 0);
+        return {
+          action: 'estimate_case_count',
+          doc_content: params.doc_content,
+          doc_title: params.doc_title,
+          doc_meta: meta,
+          scheme_targets: schemeTargets,
+          configured_count: configuredTotal,
+          options: params.options,
+          _skipMemory: true,
+        };
       }
 
       const meta = params.doc_meta || {};
@@ -416,6 +474,10 @@ module.exports = {
         return { persisted: false, reason: '只读动作' };
       }
 
+      if (action === 'estimate_case_count') {
+        return { persisted: false, reason: '只读估算' };
+      }
+
       if (action === 'register-doc') {
         const output = payload.output || {};
         const info = await store.insertDocument(ctx, {
@@ -509,6 +571,22 @@ module.exports = {
             action: 'register-doc',
           },
           meta: { ...result.meta, action: 'register-doc' },
+        };
+      }
+
+      if (action === 'estimate_case_count') {
+        return {
+          reply: output.reasoning || result.text || `建议约 ${output.estimated_count} 条`,
+          output: {
+            action: 'estimate_case_count',
+            estimated_count: output.estimated_count,
+            count: output.estimated_count,
+            estimate: output.estimated_count,
+            configured_count: output.configured_count,
+            reasoning: output.reasoning,
+            source: output.source || result.meta?.source,
+          },
+          meta: { ...result.meta, action: 'estimate_case_count', persisted: false },
         };
       }
 

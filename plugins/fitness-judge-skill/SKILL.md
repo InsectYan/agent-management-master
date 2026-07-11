@@ -5,10 +5,12 @@
 | action | 说明 | 必填 |
 |--------|------|------|
 | judge | rubric 语义判定 | rubric_id, observations[], threshold_json? |
-| explain | 运行失败解读 | run_id, observations[] |
+| explain | 运行失败解读（全模板 TPL-DET～TPL-MAN） | run_id, observations[], run_context? |
 | pre_review | 人工评审 AI 预审 | materials (含 observations) |
 | summary | 测试计划 AI 摘要 | plan_id, plan_name, observations[] |
 | list-rubrics | 列出内置 rubric | — |
+
+执行方案：**Loop**（非 ReAct）；`enrichContext` 注入 `topic` + `observations_text`，无需 `message`/`question`。
 
 ## judge 出参
 

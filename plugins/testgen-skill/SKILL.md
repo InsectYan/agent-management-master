@@ -8,6 +8,7 @@ Loop 方案完整示例：读取 API/需求文档，通过 **多步循环迭代*
 
 | action | 说明 | 必填参数 |
 | generate | 根据文档多步生成测试用例 | doc_content |
+| estimate_case_count | 根据文档与生成目标结构估算用例数量（单次 LLM，不走 generate Loop；**不参考用户填写的条数**） | document_content |
 | generate_for_fitness | Fitness 平台按大类/TS/VS/模板生成 test_item_detail 用例 | doc_content |
 | register-doc | 注册文档到库 | doc_content |
 | list | 列出最近生成记录 | |

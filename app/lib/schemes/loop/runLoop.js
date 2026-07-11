@@ -151,6 +151,16 @@ async function runLoop(options) {
     };
   }
 
+  /** 轻量估算：单次 LLM 或启发式，不走多步 Loop */
+  if (input.action === 'estimate_case_count') {
+    if (typeof loopConfig.runEstimateCaseCount === 'function') {
+      return loopConfig.runEstimateCaseCount({ llm, input, hooks, skill, loopConfig });
+    }
+    const err = new Error('estimate_case_count 未配置 runEstimateCaseCount');
+    err.status = 501;
+    throw err;
+  }
+
   /** 注册文档：跳过 LLM，由 Skill persistResult 落库 */
   if (input.action === 'register-doc') {
     const title = String(input.doc_title || input.topic || '未命名文档');

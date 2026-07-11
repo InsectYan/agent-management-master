@@ -9,13 +9,14 @@ const {
   ruleBasedObservationMatch,
   parseMatchOutput,
   needsRuleFallback,
+  parseLoopStepOutput,
 } = require('./lib/ruleFallback');
 
 module.exports = {
   name: 'fitness-observation-match-skill',
-  version: '1.0.0',
+  version: '1.1.0',
   description: 'Fitness 观测文案比对 — 多样本共用一条 expected_observation',
-  scheme: 'react',
+  scheme: 'loop',
   routes: [
     {
       path: '/api/skills/fitness-observation-match',
@@ -28,13 +29,16 @@ module.exports = {
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'match' },
-    react: {
+    loop: {
       maxSteps: 2,
       stopWhen: 'llm-done',
       systemPromptFile: 'match-system.md',
       temperature: 0.1,
       maxTokens: 1024,
       jsonSchemaHint: '{ "done": boolean, "pass": boolean, "score": number, "reasons": string[], "summary": string }',
+      parseStepOutput: (rawText) => parseLoopStepOutput(rawText),
+      stateMerge: { summary: 'replace', reasons: 'replace', pass: 'replace', score: 'replace' },
+      initialState: { summary: '', reasons: [] },
       userContextFields: [
         'action',
         'expected_observation',
@@ -70,10 +74,13 @@ module.exports = {
     async enrichContext(ctx, params) {
       return {
         action: 'match',
+        topic: 'observation_match',
+        message: 'observation_match',
         expected_observation: String(params.expected_observation || '').slice(0, 800),
         actual_text: String(params.actual_text || '').slice(0, 4000),
         input_summary: String(params.input_summary || '').slice(0, 400),
         threshold_json: params.threshold_json || {},
+        loop_json_schema_hint: '{ "done": true, "pass": boolean, "score": number, "reasons": string[], "summary": string }',
         _expected: params.expected_observation,
         _actual: params.actual_text,
       };
@@ -81,7 +88,7 @@ module.exports = {
 
     async formatResponse(ctx, result) {
       const output = result.output || {};
-      const params = result.meta?.params || {};
+      const params = result.params || result.meta?.params || {};
       const thresholdJson = params.threshold_json || {};
       let match;
 
@@ -95,10 +102,17 @@ module.exports = {
         match = parseMatchOutput(
           output,
           result.text,
-          params._expected,
-          params._actual,
+          params._expected || params.expected_observation,
+          params._actual || params.actual_text,
           thresholdJson,
         );
+        if (match.fallback) {
+          match = ruleBasedObservationMatch(
+            params._expected || params.expected_observation,
+            params._actual || params.actual_text,
+            thresholdJson,
+          );
+        }
       }
 
       return {

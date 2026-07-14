@@ -69,7 +69,7 @@ function classifyIntentRule(params = {}) {
       role: 'corrupt_on_purpose',
       required: true,
     });
-  } else {
+  } else if (needsAuthHeader(path, methodFromItem(item, configJson), texts, kind)) {
     fields.push({
       name: 'Authorization',
       location: 'headers',
@@ -114,11 +114,30 @@ function classifyIntentRule(params = {}) {
       expected_status: expectedStatus,
       omit_fields,
       corrupt_headers,
-      needs_auth: kind !== 'unauth_401',
+      needs_auth: kind !== 'unauth_401' && needsAuthHeader(path, methodFromItem(item, configJson), texts, kind),
     },
     fields,
     done: true,
   };
+}
+
+function methodFromItem(item, configJson) {
+  return String(configJson.http_method || item.http_method || 'GET').toUpperCase();
+}
+
+/** 公开探活类接口不强制鉴权；chat/submit 等业务接口才要求 */
+function needsAuthHeader(path, method, texts, kind) {
+  if (kind === 'unauth_401') return false;
+  const p = String(path || '');
+  if (/^\/?(ready|health|livez|readyz|metrics)?\/?$/i.test(p)) return false;
+  if (/\/(ready|health)$/i.test(p)) return false;
+  if (method === 'GET' && /\/(bootstrap|llm\/profiles)$/i.test(p) && !/鉴权|unauthorized|401|internal.?key/i.test(texts)) {
+    return false;
+  }
+  if (/submit|chat|internal|admin|cancel|class-session/i.test(p)) return true;
+  if (/Internal Key|鉴权|Authorization|未授权/i.test(texts)) return true;
+  // 默认：有业务 path 时要求鉴权（fitness 多数接口带 Internal Key）
+  return Boolean(p && p !== '/');
 }
 
 module.exports = { classifyIntentRule };

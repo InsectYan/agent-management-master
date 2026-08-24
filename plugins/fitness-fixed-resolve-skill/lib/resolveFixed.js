@@ -2,6 +2,7 @@
 
 /**
  * 固定值目录解析（规则主路径，无 LLM）
+ * 请求头（含 Authorization）不在执行前闸门校验——由项目「请求头」Tab / 环境 / 用例 Headers 运行时注入。
  * @param {object} params
  */
 function resolveFixedRule(params = {}) {
@@ -45,6 +46,15 @@ function resolveFixedRule(params = {}) {
     }) || null;
   }
 
+  function isHeaderField(name, loc, full) {
+    return loc === 'headers'
+      || /^headers\./i.test(full || '')
+      || /authorization/i.test(name || '')
+      || /authorization/i.test(full || '')
+      || /internal.?key/i.test(name || '')
+      || /x-internal/i.test(name || '');
+  }
+
   for (const field of fields) {
     if (!field || field.role !== 'fixed') continue;
     const name = field.name || field.field || '';
@@ -62,25 +72,11 @@ function resolveFixedRule(params = {}) {
       continue;
     }
 
-    if (skipAuth && (/authorization/i.test(name) || /authorization/i.test(full)
-      || /internal.?key/i.test(name) || /x-internal/i.test(name))) {
+    // 执行前不校验请求头：运行时由项目请求头 / 环境 / 用例 Headers 合并
+    if (isHeaderField(name, loc, full) || field.role === 'corrupt_on_purpose') {
       skip_resolve_fields.push(full || name);
-      continue;
-    }
-
-    if (/authorization/i.test(name) || /authorization/i.test(full)) {
-      if (headerKeys.has('Authorization') || envCatalog.has_authorization) {
-        resolved_fixed.push({
-          field: full || 'headers.Authorization',
-          source: 'env.global_headers',
-          present: true,
-        });
-      } else {
-        missing_fixed.push({
-          field: full || 'headers.Authorization',
-          expected_source: 'env.global_headers | project_vars',
-          detail: '当前项目环境无可用 Authorization / 鉴权头',
-        });
+      if (skipAuth && /authorization/i.test(full || name || '')) {
+        // 与 unauth_401 对齐：明确跳过鉴权解析
       }
       continue;
     }
@@ -117,18 +113,6 @@ function resolveFixedRule(params = {}) {
         expected_source: 'env | project_vars | api_template',
         detail: `固定字段「${name}」在本项目目录中不存在`,
       });
-    }
-  }
-
-  if (intent.kind !== 'unauth_401' && intent.needs_auth && !resolved_fixed.some(r => /Authorization/i.test(r.field))) {
-    if (!(headerKeys.has('Authorization') || envCatalog.has_authorization)) {
-      if (!missing_fixed.some(m => /Authorization/i.test(m.field))) {
-        missing_fixed.push({
-          field: 'headers.Authorization',
-          expected_source: 'env.global_headers',
-          detail: '正向/业务请求需要鉴权头，当前项目环境未配置',
-        });
-      }
     }
   }
 

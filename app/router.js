@@ -29,4 +29,6 @@ module.exports = app => {
 
   /** 通用 invoke：POST body 同 Skill 路由参数 */
   router.post('/api/skills/:name/invoke', controller.skill.invoke);
+  /** SSE 流式 invoke：推送 status/delta，结束推送 done */
+  router.post('/api/skills/:name/invoke-stream', controller.skill.invokeStream);
 };

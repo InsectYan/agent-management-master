@@ -341,7 +341,17 @@ async function runLoop(options) {
       label: partialOutput || `第 ${step + 1} 步完成`,
       step: step + 1,
       current_phase: state.phase || 'analyze',
+      thinking: partialOutput || rawText.slice(0, 400),
     });
+    try {
+      hooks?.onDelta?.({
+        delta: partialOutput || rawText.slice(0, 400),
+        text: state.summary || '',
+        step: step + 1,
+      });
+    } catch {
+      // ignore
+    }
 
     if (parsed.done || parsed.continue === false) {
       stoppedReason = 'llm-done';

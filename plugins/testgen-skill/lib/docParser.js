@@ -9,6 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const { truncateField, FIELD_MAX_LEN } = require('./testTypeQuota');
 
+const HTTP_METHODS = 'GET|POST|PUT|PATCH|DELETE';
+
 /**
  * 提取 Markdown 二级标题段落
  * @param {string} md
@@ -16,7 +18,7 @@ const { truncateField, FIELD_MAX_LEN } = require('./testTypeQuota');
  */
 function extractSections(md) {
   const sections = [];
-  const parts = md.split(/\n(?=##\s+)/);
+  const parts = String(md || '').split(/\n(?=##\s+)/);
   for (const part of parts) {
     const m = part.match(/^##\s*(.+?)\s*\n([\s\S]*)/);
     if (m) {
@@ -27,23 +29,167 @@ function extractSections(md) {
 }
 
 /**
+ * 规范化路径：去掉 query、尾斜杠；绝对 URL 取 pathname
+ * @param {string} raw
+ * @returns {string}
+ */
+function normalizeApiPath(raw) {
+  let p = String(raw || '').trim();
+  if (!p) return '';
+  try {
+    if (/^https?:\/\//i.test(p)) {
+      p = new URL(p).pathname || p;
+    }
+  } catch {
+    // keep raw
+  }
+  p = p.replace(/\?.*$/, '').replace(/\/+$/, '');
+  if (!p.startsWith('/')) return '';
+  return p || '/';
+}
+
+/**
+ * Apifox 导出风格：## 标题 + **接口URL** > /path + **请求方式** > METHOD
+ * @param {string} text
+ * @returns {{ method: string, path: string, title: string, key: string }[]}
+ */
+function extractApifoxEndpoints(text) {
+  const sections = extractSections(text);
+  const results = [];
+  const seen = new Set();
+
+  for (const sec of sections) {
+    const body = sec.body || '';
+    const pathMatch = body.match(/\*\*接口URL\*\*[\s\S]*?^>\s*(\S+)\s*$/im);
+    if (!pathMatch) continue;
+
+    const apiPath = normalizeApiPath(pathMatch[1]);
+    if (!apiPath) continue;
+
+    const methodMatch = body.match(/\*\*请求方式\*\*[\s\S]*?^>\s*(GET|POST|PUT|PATCH|DELETE)\s*$/im);
+    const method = (methodMatch?.[1] || 'POST').toUpperCase();
+    const key = `${method} ${apiPath}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({
+      method,
+      path: apiPath,
+      title: sec.heading,
+      key,
+    });
+  }
+  return results;
+}
+
+/**
+ * 同行 METHOD /path（含反引号）
+ * @param {string} text
+ * @returns {{ method: string, path: string, title: string, key: string }[]}
+ */
+function extractInlineEndpoints(text) {
+  const results = [];
+  const seen = new Set();
+  const patterns = [
+    new RegExp(`\`(${HTTP_METHODS})\\s+(\\/[\\w\\-/{}.:]+)\``, 'gi'),
+    new RegExp(`\\b(${HTTP_METHODS})\\s+(\\/[\\w\\-/{}.:]+)`, 'gi'),
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const method = m[1].toUpperCase();
+      const apiPath = normalizeApiPath(m[2]);
+      if (!apiPath) continue;
+      const key = `${method} ${apiPath}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      results.push({ method, path: apiPath, title: '', key });
+    }
+  }
+  return results;
+}
+
+/**
+ * 提取 API 端点详情（Apifox + 同行写法）
+ * @param {string} text
+ * @returns {{ method: string, path: string, title: string, key: string }[]}
+ */
+function extractApiEndpointDetails(text) {
+  const byKey = new Map();
+  for (const ep of [ ...extractApifoxEndpoints(text), ...extractInlineEndpoints(text) ]) {
+    if (!byKey.has(ep.key)) byKey.set(ep.key, ep);
+  }
+  return [ ...byKey.values() ];
+}
+
+/**
  * 提取 API 端点行（简易启发式）
  * @param {string} text
  * @returns {string[]}
  */
 function extractApiEndpoints(text) {
-  const endpoints = [];
-  const patterns = [
-    /`(GET|POST|PUT|PATCH|DELETE)\s+(\/[\w\-/{}\.:]+)`/gi,
-    /(GET|POST|PUT|PATCH|DELETE)\s+(\/[\w\-/{}\.:]+)/gi,
+  return extractApiEndpointDetails(text).map(ep => ep.key);
+}
+
+/**
+ * 组装供估算 / Loop 使用的接口清单文本
+ * @param {{ method: string, path: string, title?: string }[]} details
+ * @param {number} [maxItems]
+ */
+function formatEndpointCatalog(details, maxItems = 500) {
+  const list = Array.isArray(details) ? details.slice(0, maxItems) : [];
+  if (!list.length) return '';
+  return list
+    .map((ep, i) => {
+      const title = ep.title ? ` — ${ep.title}` : '';
+      return `${i + 1}. ${ep.method} ${ep.path}${title}`;
+    })
+    .join('\n');
+}
+
+/**
+ * 按接口块拼装正文，优先保证清单完整，正文按预算截取
+ * @param {string} fullText
+ * @param {object} meta parseDocument 结果
+ * @param {number} maxLen
+ */
+function buildDocumentContextForLlm(fullText, meta, maxLen = 8000) {
+  const limit = Math.max(2000, Number(maxLen) || 8000);
+  const details = meta.endpointDetails || extractApiEndpointDetails(fullText);
+  const catalog = formatEndpointCatalog(details);
+  const headerParts = [
+    `## 接口清单（共 ${details.length} 个，已全量列出）`,
+    catalog || '（未识别到标准接口行）',
+    '',
+    '## 文档正文（按接口块截取，可能不含全文）',
+    '',
   ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(text)) !== null) {
-      endpoints.push(`${m[1].toUpperCase()} ${m[2]}`);
+  const header = headerParts.join('\n');
+  const budget = Math.max(400, limit - header.length);
+
+  const sections = meta._sections || extractSections(fullText);
+  const titleSet = new Set(details.map(d => d.title).filter(Boolean));
+  let body = '';
+
+  if (titleSet.size && sections.length) {
+    for (const sec of sections) {
+      if (!titleSet.has(sec.heading)) continue;
+      const chunk = `## ${sec.heading}\n${sec.body}\n\n`;
+      if (body.length + chunk.length > budget) {
+        const remain = budget - body.length;
+        if (remain > 120) {
+          body += chunk.slice(0, remain) + '\n…(截断)\n';
+        }
+        break;
+      }
+      body += chunk;
     }
   }
-  return [ ...new Set(endpoints) ];
+
+  if (!body.trim()) {
+    body = String(fullText || '').slice(0, budget);
+  }
+
+  return (header + body).slice(0, limit);
 }
 
 /**
@@ -54,11 +200,12 @@ function extractApiEndpoints(text) {
 function parseDocument(content, options = {}) {
   const text = String(content || '').trim();
   const sections = extractSections(text);
-  const endpoints = extractApiEndpoints(text);
+  const endpointDetails = extractApiEndpointDetails(text);
+  const endpoints = endpointDetails.map(ep => ep.key);
 
   const requirements = [];
   for (const sec of sections) {
-    if (/需求|功能|接口|API|用例|场景/i.test(sec.heading)) {
+    if (/需求|功能|接口|API|用例|场景/i.test(sec.heading) || endpointDetails.some(e => e.title === sec.heading)) {
       requirements.push({ section: sec.heading, excerpt: sec.body.slice(0, 500) });
     }
   }
@@ -69,8 +216,12 @@ function parseDocument(content, options = {}) {
     sectionCount: sections.length,
     sections: sections.map(s => ({ heading: s.heading, length: s.body.length })),
     endpoints,
+    endpointDetails,
+    endpointCount: endpointDetails.length,
     requirements,
     preview: text.slice(0, options.previewLen || 800),
+    /** 内部：供 buildDocumentContextForLlm 复用，避免二次 split */
+    _sections: sections,
   };
 }
 
@@ -137,6 +288,11 @@ function normalizePriority(priority) {
 module.exports = {
   extractSections,
   extractApiEndpoints,
+  extractApiEndpointDetails,
+  extractApifoxEndpoints,
+  formatEndpointCatalog,
+  buildDocumentContextForLlm,
+  normalizeApiPath,
   parseDocument,
   loadDocumentFile,
   normalizeTestCases,

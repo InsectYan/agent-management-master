@@ -10,6 +10,8 @@ const {
   parseDocument,
   loadDocumentFile,
   normalizeTestCases,
+  buildDocumentContextForLlm,
+  formatEndpointCatalog,
 } = require('./lib/docParser');
 const {
   parseTestgenStepOutput,
@@ -102,10 +104,13 @@ module.exports = {
       temperature: 0.4,
       maxTokens: 4096,
       llmTimeoutMs: Number(process.env.TESTGEN_LLM_TIMEOUT_MS || 180000),
-      estimateDocPreviewLen: 3500,
+      /** 正文摘录仅辅助；接口覆盖以全量清单为准 */
+      estimateDocPreviewLen: 2500,
+      estimateEndpointCatalogMaxChars: 12000,
       estimateLlmTimeoutMs: Number(process.env.TESTGEN_ESTIMATE_LLM_TIMEOUT_MS || 45000),
       runEstimateCaseCount,
-      docContentMaxLen: 8000,
+      /** 注入前会先拼「全量接口清单 + 按块正文」 */
+      docContentMaxLen: 14000,
       stepPhases: STEP_PHASES,
       enforcePhaseByStep: true,
       blockDoneWithoutCases: true,
@@ -371,7 +376,7 @@ module.exports = {
         };
       }
 
-      const meta = params.doc_meta || {};
+      const meta = params.doc_meta || parseDocument(params.doc_content || '', { title: params.doc_title });
       const isFitness = params.action === 'generate_for_fitness'
         || Boolean(params.fitness_context?.scheme_id || params.scheme_id);
 
@@ -419,10 +424,17 @@ module.exports = {
         || params.options?.existing_cases_context
         || '';
 
+      const loopDocContent = buildDocumentContextForLlm(
+        params.doc_content || '',
+        meta,
+        14000,
+      );
+      const endpointCatalog = formatEndpointCatalog(meta.endpointDetails || []);
+
       return {
         action: params.action === 'generate_for_fitness' ? 'generate_for_fitness' : 'generate',
-        topic: params.topic || params.doc_title,
-        doc_content: params.doc_content,
+        topic: params.topic || params.doc_title || meta.title,
+        doc_content: loopDocContent,
         doc_id: params.doc_id,
         module: params.module,
         test_types: params.test_types,
@@ -440,10 +452,11 @@ module.exports = {
         doc_meta: {
           title: meta.title,
           sectionCount: meta.sectionCount,
+          endpointCount: meta.endpointCount,
           endpoints: meta.endpoints,
           requirements: meta.requirements,
         },
-        endpoints: (meta.endpoints || []).join('\n'),
+        endpoints: endpointCatalog || (meta.endpoints || []).join('\n'),
         requirements_hint: [
           fitnessPrimary,
           `\n## 当前模板输出格式\n${templateOutputFormat}`,
@@ -454,6 +467,7 @@ module.exports = {
             : null,
           quotaPrompt,
           (meta.requirements || [])
+            .slice(0, 40)
             .map(r => `- ${r.section}: ${r.excerpt?.slice(0, 120)}`)
             .join('\n'),
           knowledgeHint ? `\n## 知识库\n${knowledgeHint}` : '',

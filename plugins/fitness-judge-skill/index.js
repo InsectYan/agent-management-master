@@ -51,7 +51,11 @@ function formatRunContext(ctx = {}) {
 
 function buildLoopTopic(action, params) {
   if (action === 'explain') {
-    return `fitness_run_explain_${params.run_id || params.item_id || 'unknown'}`;
+    return [
+      '任务：对比【配置项】【目标项】【实际返回】，分析导致本 Run 失败的差异与根因。',
+      '禁止只汇总详情；必须输出差异对照与可操作建议。',
+      `run_id=${params.run_id || '—'} item_id=${params.item_id || '—'}`,
+    ].join(' ');
   }
   if (action === 'pre_review') {
     return `fitness_pre_review_${params.run_id || params.item_id || 'unknown'}`;
@@ -147,7 +151,7 @@ function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
 
 module.exports = {
   name: 'fitness-judge-skill',
-  version: '1.1.0',
+  version: '1.2.0',
   description: 'Fitness 语义判定 — judge / explain / pre_review / summary',
   scheme: 'loop',
   routes: [
@@ -167,7 +171,8 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'judge-system.md',
       temperature: 0.2,
-      maxTokens: 2048,
+      maxTokens: 4096,
+      llmTimeoutMs: 900000,
       stateMerge: {
         summary: 'replace',
         reasons: 'replace',
@@ -179,6 +184,11 @@ module.exports = {
       parseStepOutput: parseLoopStepOutput,
       userContextFields: [
         'action',
+        'explain_task',
+        'config_text',
+        'expected_text',
+        'actual_text',
+        'assertion_diff_text',
         'rubric',
         'observations_text',
         'run_id',
@@ -246,6 +256,10 @@ module.exports = {
           item_id: params.item_id,
           observations,
           run_context: params.run_context || {},
+          config_text: params.config_text || '',
+          expected_text: params.expected_text || '',
+          actual_text: params.actual_text || '',
+          assertion_diff_text: params.assertion_diff_text || '',
           focus: params.focus || 'failed',
         };
       }
@@ -280,7 +294,7 @@ module.exports = {
         : '';
       const topic = buildLoopTopic(action, params);
 
-      return {
+      const base = {
         action,
         topic,
         message: topic,
@@ -302,6 +316,20 @@ module.exports = {
         _materials: params.materials,
         _run_context: params.run_context,
       };
+
+      if (action === 'explain') {
+        return {
+          ...base,
+          explain_task: topic,
+          config_text: params.config_text || '',
+          expected_text: params.expected_text || '',
+          actual_text: params.actual_text || '',
+          assertion_diff_text: params.assertion_diff_text || '',
+          loop_system_prompt_file: 'explain-system.md',
+        };
+      }
+
+      return base;
     },
 
     async formatResponse(ctx, result) {
@@ -319,18 +347,26 @@ module.exports = {
 
       if (action === 'explain') {
         let markdown = output.summary || output.markdown || result.text || '';
-        if (!markdown || needsRuleFallback(result)) {
-          markdown = ruleBasedExplain(
+        const fallback = needsRuleFallback(result)
+          || /^已完成 \d+ 步迭代，主题：/.test(String(markdown || result.text || ''));
+        if (fallback || !String(markdown || '').trim()) {
+          // 不再用规则汇总冒充 AI：返回明确不可用，由 BFF 报错
+          const hint = ruleBasedExplain(
             params.run_id || output.run_id,
             params._observations || params.observations || [],
             params._run_context || params.run_context,
           );
-        } else if (/^已完成 \d+ 步迭代，主题：/.test(markdown)) {
-          markdown = ruleBasedExplain(
-            params.run_id || output.run_id,
-            params._observations || params.observations || [],
-            params._run_context || params.run_context,
-          );
+          return {
+            reply: '',
+            output: { markdown: '', action: 'explain', debug_rule_hint: hint.slice(0, 500) },
+            meta: {
+              ...result.meta,
+              action,
+              run_id: output.run_id || params.run_id,
+              fallback: true,
+              error: 'EXPLAIN_AI_UNAVAILABLE',
+            },
+          };
         }
         return {
           reply: markdown,
@@ -339,7 +375,7 @@ module.exports = {
             ...result.meta,
             action,
             run_id: output.run_id || params.run_id,
-            fallback: needsRuleFallback(result) || /^已完成 \d+ 步迭代，主题：/.test(result.text || ''),
+            fallback: false,
           },
         };
       }

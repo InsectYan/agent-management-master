@@ -44,6 +44,33 @@ class SkillController extends Controller {
       this.ctx.body = { error: err.message, skill: skillName };
     }
   }
+
+  /**
+   * POST /api/skills/:name/invoke-stream — SSE 流式执行（status/delta/done）
+   */
+  async invokeStream() {
+    const skillName = this.ctx.params.name;
+    try {
+      await this.service.skillInvoke.invokeStream({
+        skillName,
+        ctx: this.ctx,
+      });
+    } catch (err) {
+      if (!this.ctx.res.headersSent) {
+        this.ctx.status = err.status || 500;
+        this.ctx.body = { error: err.message, skill: skillName };
+        return;
+      }
+      try {
+        this.ctx.res.write(
+          `event: error\ndata: ${JSON.stringify({ message: err.message, status: err.status || 500 })}\n\n`,
+        );
+        this.ctx.res.end();
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 }
 
 module.exports = SkillController;

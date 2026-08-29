@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { llmChat, extractJsonObject, llmAvailable } = require('../../llm/chat');
+const { llmChat, llmChatStream, extractJsonObject, llmAvailable } = require('../../llm/chat');
 
 /** 默认调研类 Prompt（research-skill 等未自定义时使用） */
 const DEFAULT_SYSTEM_PROMPT = [
@@ -274,7 +274,8 @@ async function runLoop(options) {
     let parsed;
     let rawText = '';
     try {
-      const result = await llmChat({
+      const chatFn = typeof hooks?.onDelta === 'function' ? llmChatStream : llmChat;
+      const result = await chatFn({
         llm,
         hooks,
         messages: [

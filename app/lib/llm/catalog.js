@@ -1,6 +1,6 @@
 /**
  * @file catalog.js
- * @description LLM 预置配置目录（CATALOG）。
+ * @description 文本 LLM 预置配置目录（CATALOG）。出图 / 出视频见 app/lib/media/catalog.js。
  *              参考 cartoon-agent llmProfiles.js，apiKey 仅从环境变量解析，不下发客户端。
  */
 

@@ -80,6 +80,12 @@ module.exports = appInfo => {
     domainWhiteList: [ 'localhost', '127.0.0.1', '.local' ],
   };
 
+  /** 出图响应可能含 b64，需大于默认 1mb */
+  config.bodyParser = {
+    jsonLimit: '16mb',
+    formLimit: '16mb',
+  };
+
   /** 主 Agent 平台业务配置（集中入口，业务代码读 config.appSettings） */
   config.appSettings = {
     /** 项目根目录绝对路径 */
@@ -96,6 +102,9 @@ module.exports = appInfo => {
       ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'http://localhost:11434/v1').trim(),
       ollamaModel: (process.env.OLLAMA_MODEL || 'qwen3.6:latest').trim(),
       ollamaApiKeyPlaceholder: (process.env.OPENAI_API_KEY || 'ollama').trim(),
+    },
+    media: {
+      defaultProfileId: (process.env.MEDIA_DEFAULT_PROFILE || 'openai-dall-e-3').trim(),
     },
     /** 记忆系统（Phase 5） */
     memorySystem: {

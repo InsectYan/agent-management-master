@@ -20,6 +20,8 @@ module.exports = app => {
   router.get('/api/plugins/:name/skill-doc', controller.plugin.skillDoc);
   router.get('/api/plugins/:name', controller.plugin.show);
   router.get('/api/llm/profiles', controller.llm.profiles);
+  router.get('/api/media/profiles', controller.media.profiles);
+  router.post('/api/media/generate', controller.media.generate);
 
   /** 记忆 API（Phase 5） */
   router.get('/api/memory', controller.memory.list);

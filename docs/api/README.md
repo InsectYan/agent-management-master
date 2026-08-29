@@ -15,7 +15,8 @@ http://localhost:4001
 | 请求 | `Content-Type: application/json`（GET 除外） |
 | 响应 | JSON；SSE 路由返回 `text/event-stream` |
 | 鉴权 | 本地模式无鉴权 |
-| LLM 选择 | body/query 传 `llm_profile`（P1 优先级） |
+| LLM 选择 | body/query 传 `llm_profile`（文本，P1） |
+| 多模态选择 | body 传 `media_profile`（图片/视频，P1） |
 
 ## 平台 API
 
@@ -27,7 +28,9 @@ http://localhost:4001
 | GET | `/api/plugins` | Skill 列表 |
 | GET | `/api/plugins/:name` | Skill 详情 |
 | GET | `/api/plugins/:name/skill-doc` | SKILL.md 解析结果 |
-| GET | `/api/llm/profiles` | LLM catalog |
+| GET | `/api/llm/profiles` | 文本 LLM catalog |
+| GET | `/api/media/profiles` | 多模态（图片/视频）catalog |
+| POST | `/api/media/generate` | 出图/出视频 `{ kind, prompt, media_profile }` |
 | GET | `/api/memory` | 已启用记忆的 Skill |
 | GET | `/api/memory/:skillName` | 读取记忆 |
 | POST | `/api/memory/:skillName/append` | 追加记忆 `{ text, section? }` |

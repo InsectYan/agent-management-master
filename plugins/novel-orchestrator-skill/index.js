@@ -1,22 +1,22 @@
 /**
- * @file novel-writer-skill/index.js
- * @description 小说结构化生成（Loop 单步 JSON）：基础信息、世界观、人物、大纲与章节。
+ * @file novel-orchestrator-skill/index.js
+ * @description 小说开书任务拆分：只出 plan.tasks，不写正文，不 invoke 其他 Skill。
  */
 
 'use strict';
 
-const { parseWriterStep } = require('./lib/schemaHints');
+const { parsePlanStep } = require('./lib/parseStep');
 
 module.exports = {
-  name: 'novel-writer-skill',
+  name: 'novel-orchestrator-skill',
   version: '0.1.0',
-  description: '小说结构化生成：基础信息、世界观、人物、大纲与章节 patch',
+  description: '小说开书任务拆分：产出 tasks 计划，不写设定正文',
   scheme: 'loop',
   routes: [
     {
-      path: '/api/skills/novel-writer',
+      path: '/api/skills/novel-orchestrator',
       method: 'POST',
-      description: 'fill_basic / fill_world / fill_characters / fill_outline / fill_chapters / rewrite_field',
+      description: 'plan / replan',
       requiresAuth: false,
     },
   ],
@@ -24,23 +24,26 @@ module.exports = {
   memoryConfig: { enabled: false },
   config: {
     llmDefaultProfile: 'ollama-qwen',
-    actionDefaults: { POST: 'fill_basic' },
+    actionDefaults: { POST: 'plan' },
     loop: {
       maxSteps: 1,
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
-      temperature: 0.6,
-      maxTokens: 8192,
-      parseStepOutput: parseWriterStep,
+      temperature: 0.4,
+      maxTokens: 4096,
+      parseStepOutput: parsePlanStep,
       jsonSchemaHint: [
         '{',
         '  "done": true,',
         '  "continue": false,',
         '  "thinking": "内部推理",',
-        '  "reply": "给作者看的说明",',
+        '  "reply": "给作者看的计划说明",',
         '  "summary": "与 reply 相同",',
-        '  "target_fields": ["characters"],',
-        '  "patch": { "chapters": [{ "title": "章名", "faction": "hero", "outline_ref": "小节标题" }] }',
+        '  "patch": {',
+        '    "tasks": [',
+        '      { "id": "t_basic", "path": "plan.basic", "status": "pending", "reason": "…" }',
+        '    ]',
+        '  }',
         '}',
       ].join('\n'),
       userContextFields: [
@@ -49,10 +52,9 @@ module.exports = {
         'user_message',
         'target_fields',
         'bound_context',
+        'coverage',
         'catalog',
         'history',
-        'sparks',
-        'brainstorm_reply',
       ],
       initialState: {
         thinking: '',
@@ -74,11 +76,13 @@ module.exports = {
   },
   callbacks: {
     async beforeExecute(ctx, params) {
-      const action = params.action || 'fill_basic';
+      const action = params.action || 'plan';
       const message = String(params.user_message || params.message || params.topic || '').trim();
+      const coverage = (params.bound_context && params.bound_context.coverage) || params.coverage || {};
       return {
         ...params,
         action,
+        coverage,
         topic: message || `novel_${action}`,
         user_message: message,
       };
@@ -89,10 +93,8 @@ module.exports = {
       const patch = output.patch && typeof output.patch === 'object' ? output.patch : {};
       let reply = output.reply || output.summary || result.text || '';
       if (/^已完成 \d+ 步迭代/.test(reply)) {
-        const keys = Object.keys(patch);
-        reply = keys.length
-          ? `已写好 ${keys.join('、')}，可应用到表单。`
-          : '没有解析到结构化结果，请再试一次或换个说法。';
+        const n = Array.isArray(patch.tasks) ? patch.tasks.length : 0;
+        reply = n ? `已拆成 ${n} 步，可执行下一步。` : '没有解析到计划，请再试一次。';
       }
       return {
         reply,
@@ -100,7 +102,7 @@ module.exports = {
         output: {
           thinking: output.thinking || '',
           reply,
-          target_fields: Array.isArray(output.target_fields) ? output.target_fields : Object.keys(patch),
+          target_fields: Array.isArray(output.target_fields) ? output.target_fields : ['tasks'],
           patch,
         },
         meta: result.meta,

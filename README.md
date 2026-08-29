@@ -50,7 +50,9 @@ agentm local:smoke
 | GET | `/api/schemes` | 已注册 Agent 方案 |
 | GET | `/api/plugins` | 已加载 Skill（含 dbTables、hasSkillDoc） |
 | GET | `/api/plugins/:name/skill-doc` | Skill 的 SKILL.md 全文 |
-| GET | `/api/llm/profiles` | LLM 配置 catalog |
+| GET | `/api/llm/profiles` | 文本 LLM catalog |
+| GET | `/api/media/profiles` | 多模态（图片/视频）catalog |
+| POST | `/api/media/generate` | 出图/出视频 |
 | GET | `/api/memory` | 已启用记忆的 Skill |
 | GET | `/api/memory/:skillName` | 读取记忆 |
 | POST | `/api/memory/:skillName/append` | 追加记忆 |

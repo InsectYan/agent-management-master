@@ -51,21 +51,35 @@ const WORLD_KEYS = [
 ];
 
 const CHAR_KEYS = ['characters', 'character_edges'];
+const OUTLINE_KEYS = ['volumes'];
+const CHAPTER_KEYS = ['chapters'];
 
 function liftPatch(parsed = {}) {
   const patch = parsed.patch && typeof parsed.patch === 'object' && !Array.isArray(parsed.patch)
     ? { ...parsed.patch }
     : {};
-  for (const key of [...BASIC_KEYS, ...WORLD_KEYS, ...CHAR_KEYS]) {
+  for (const key of [...BASIC_KEYS, ...WORLD_KEYS, ...CHAR_KEYS, ...OUTLINE_KEYS, ...CHAPTER_KEYS]) {
     if (parsed[key] !== undefined && patch[key] === undefined) {
       patch[key] = parsed[key];
     }
+  }
+  if (!patch.volumes && parsed.outline && Array.isArray(parsed.outline.volumes)) {
+    patch.volumes = parsed.outline.volumes;
+  }
+  if (!patch.chapters && parsed.content && Array.isArray(parsed.content.chapters)) {
+    patch.chapters = parsed.content.chapters;
   }
   return patch;
 }
 
 function fallbackReply(patch) {
   if (patch.title) return `建议书名：${patch.title}`;
+  if (Array.isArray(patch.volumes) && patch.volumes.length) {
+    return `已整理 ${patch.volumes.length} 卷大纲，可应用到表单。`;
+  }
+  if (Array.isArray(patch.chapters) && patch.chapters.length) {
+    return `已整理 ${patch.chapters.length} 个章节标签，可应用到表单。`;
+  }
   if (Array.isArray(patch.characters) && patch.characters.length) {
     return `已整理 ${patch.characters.length} 个角色，可应用到表单。`;
   }
@@ -105,5 +119,7 @@ module.exports = {
   BASIC_KEYS,
   WORLD_KEYS,
   CHAR_KEYS,
+  OUTLINE_KEYS,
+  CHAPTER_KEYS,
   stripThink,
 };

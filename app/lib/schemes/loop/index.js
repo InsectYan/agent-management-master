@@ -21,7 +21,13 @@ class LoopExecutor extends AgentExecutor {
     const input = params.input || {};
 
     const hooks = ctx?.state?.schemeHooks;
-    const result = await runLoop({ llm, skill, input, hooks });
+    const result = await runLoop({
+      llm,
+      skill,
+      input,
+      hooks,
+      signal: ctx?.state?.llmAbort?.signal,
+    });
 
     return {
       text: result.text,

@@ -6,6 +6,7 @@ const {
   extractApiEndpointDetails,
 } = require('./docParser');
 const { llmChat, extractJsonObject, llmAvailable } = require('../../../app/lib/llm/chat');
+const { resolveLlmTimeout } = require('../../../app/lib/llm/localLlm');
 
 /** 合计条数硬顶（可用 TESTGEN_ESTIMATE_MAX_TOTAL 覆盖） */
 const ESTIMATE_MAX_TOTAL = Number(process.env.TESTGEN_ESTIMATE_MAX_TOTAL || 8000);
@@ -303,9 +304,7 @@ async function runEstimateCaseCount({ llm, input, hooks, loopConfig }) {
     const catalog = formatEndpointCatalog(details);
     const previewLen = Number(loopConfig?.estimateDocPreviewLen) || 2500;
     const catalogMaxChars = Number(loopConfig?.estimateEndpointCatalogMaxChars) || 12000;
-    const llmTimeout = llm.localOllama || llm.provider === 'ollama'
-      ? 0
-      : Number(loopConfig?.estimateLlmTimeoutMs || 45000);
+    const llmTimeout = resolveLlmTimeout(llm, loopConfig?.estimateLlmTimeoutMs || 45000);
 
     const catalogBlock = catalog
       ? `接口清单（共 ${endpointCount} 个，供判断「哪些值得测」；不必为每个接口、每个目标都生成用例）：\n${catalog.slice(0, catalogMaxChars)}`

@@ -14,9 +14,11 @@
 |--------|------|
 | fill_basic | 按 scene / target_fields 填基础信息（可多字段） |
 | fill_world | 填世界观文本字段与 timeline[]（year + event） |
+| fill_factions | 门派/家族/国家等组织数组 |
 | fill_characters | 角色数组 + character_edges（role/relation 白名单） |
 | fill_outline | volumes[].groups[].sections[] + word_target |
 | fill_chapters | chapters[]（title / faction / outline_ref，不要 order） |
+| fill_chapter_body | 只写当前章 `body`，不带全书。本地模型收窄字数并关 think；云端模型按 word_target 放宽 |
 | rewrite_field | 只改 target_fields 里的字段 |
 
 ## 入参（BFF 注入）

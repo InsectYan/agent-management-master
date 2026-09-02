@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { llmChat, llmChatStream, extractJsonObject, llmAvailable } = require('../../llm/chat');
+const { isLocalLlm, resolveLlmTimeout, resolveMaxTokens } = require('../../llm/localLlm');
 
 /** 默认调研类 Prompt（research-skill 等未自定义时使用） */
 const DEFAULT_SYSTEM_PROMPT = [
@@ -119,7 +120,7 @@ function handleListAction(input, loopConfig) {
  * @param {Object} [options.hooks]
  */
 async function runLoop(options) {
-  const { llm, skill, input, hooks } = options;
+  const { llm, skill, input, hooks, signal } = options;
   const loopConfig = skill.config?.loop || {};
   const maxSteps = Math.min(Math.max(Number(loopConfig.maxSteps) || 5, 1), 10);
   const topic = String(input.topic || input.title || input.message || input.query || '未命名主题');
@@ -211,11 +212,18 @@ async function runLoop(options) {
   const jsonSchemaHint = input.loop_json_schema_hint || loopConfig.jsonSchemaHint || DEFAULT_JSON_SCHEMA;
   const userContextBlock = loopConfig.userContextFields || [];
   const extraUserLines = [];
+  const local = isLocalLlm(llm);
+  const historyLimit = local
+    ? (Number(loopConfig.localHistoryLimit) > 0 ? Number(loopConfig.localHistoryLimit) : 0)
+    : 0;
 
   for (const field of userContextBlock) {
-    if (input[field] !== undefined && input[field] !== null && input[field] !== '') {
-      extraUserLines.push(`${field}：${typeof input[field] === 'string' ? input[field] : JSON.stringify(input[field])}`);
+    if (input[field] === undefined || input[field] === null || input[field] === '') continue;
+    let value = input[field];
+    if (field === 'history' && historyLimit && Array.isArray(value)) {
+      value = value.slice(-historyLimit);
     }
+    extraUserLines.push(`${field}：${typeof value === 'string' ? value : JSON.stringify(value)}`);
   }
 
   if (input.doc_content) {
@@ -242,6 +250,10 @@ async function runLoop(options) {
       );
     }
 
+    const stepHint = local
+      ? (loopConfig.localStepHint || loopConfig.stepHint || '')
+      : (loopConfig.stepHint || '');
+
     const userPrompt = [
       `主题：${topic}`,
       `当前步：${step + 1}/${maxSteps}`,
@@ -252,7 +264,7 @@ async function runLoop(options) {
       ...stepDirectives,
       `当前 state：${JSON.stringify(state)}`,
       stopWhen === 'llm-done' ? '若任务已足够完整，请设置 done=true, continue=false' : '',
-      loopConfig.stepHint || '',
+      stepHint,
     ].filter(Boolean).join('\n\n');
 
     emitStatus(hooks, {
@@ -267,9 +279,14 @@ async function runLoop(options) {
 
     emitStatus(hooks, { phase: 'loop', label: `Loop 第 ${step + 1}/${maxSteps} 步…` });
 
-    const perCallTimeout = llm.localOllama || llm.provider === 'ollama'
-      ? 0
-      : (loopConfig.llmTimeoutMs ?? 180000);
+    const perCallTimeout = resolveLlmTimeout(
+      llm,
+      local ? (loopConfig.localLlmTimeoutMs ?? loopConfig.llmTimeoutMs) : loopConfig.llmTimeoutMs,
+    );
+    const maxTokens = resolveMaxTokens(llm, {
+      maxTokens: loopConfig.maxTokens,
+      localMaxTokens: loopConfig.localMaxTokens,
+    });
 
     let parsed;
     let rawText = '';
@@ -278,12 +295,13 @@ async function runLoop(options) {
       const result = await chatFn({
         llm,
         hooks,
+        signal,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
         temperature: loopConfig.temperature ?? 0.5,
-        maxTokens: loopConfig.maxTokens ?? 1024,
+        maxTokens,
         timeoutMs: perCallTimeout,
       });
       rawText = String(result.text || '').trim();

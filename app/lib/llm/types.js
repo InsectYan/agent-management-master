@@ -13,6 +13,7 @@
  * @property {string} model - 模型名
  * @property {string} baseUrl - OpenAI 兼容 API 根地址
  * @property {string} apiKey - API 密钥（Ollama 可为占位 ollama）
+ * @property {boolean} [localOllama] - 目录里标记的本地 Ollama profile
  */
 
 /**
@@ -34,6 +35,7 @@
  * @property {string} apiKey
  * @property {'request'|'skill'|'platform'} source - 命中哪一级优先级
  * @property {string} profileIdUsed - 实际使用的 profile id
+ * @property {boolean} [localOllama]
  */
 
 module.exports = {};

@@ -1,6 +1,6 @@
 /**
  * @file novel-writer-skill/index.js
- * @description 小说结构化生成（Loop 单步 JSON）：基础信息、世界观、人物、大纲与章节。
+ * @description 小说结构化生成（Loop 单步 JSON）：基础信息、世界观、门派、人物、大纲、章节与单章正文。
  */
 
 'use strict';
@@ -10,13 +10,13 @@ const { parseWriterStep } = require('./lib/schemaHints');
 module.exports = {
   name: 'novel-writer-skill',
   version: '0.1.0',
-  description: '小说结构化生成：基础信息、世界观、人物、大纲与章节 patch',
+  description: '小说结构化生成：基础信息、世界观、门派、人物、大纲、章节与单章正文 patch',
   scheme: 'loop',
   routes: [
     {
       path: '/api/skills/novel-writer',
       method: 'POST',
-      description: 'fill_basic / fill_world / fill_characters / fill_outline / fill_chapters / rewrite_field',
+      description: 'fill_basic / fill_world / fill_factions / fill_characters / fill_outline / fill_chapters / fill_chapter_body / rewrite_field',
       requiresAuth: false,
     },
   ],
@@ -30,7 +30,19 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.6,
-      maxTokens: 8192,
+      maxTokens: 24576,
+      localMaxTokens: 8192,
+      llmTimeoutMs: 300000,
+      localLlmTimeoutMs: 600000,
+      localHistoryLimit: 4,
+      localStepHint: [
+        '【本地模型】patch.body 控制在 1600～2000 字，必须输出完整可解析 JSON，且一定要带 patch.body。',
+        '宁可短于 word_target，也不要只写摘要。接近上限时收束本章并闭合 JSON。禁止 think / <think>。',
+      ].join(''),
+      stepHint: [
+        '【云端模型】patch.body 尽量靠近 bound_context.word_target，可写满目标字数。',
+        '必须输出完整 JSON，patch.body 只含当前这一章。',
+      ].join(''),
       parseStepOutput: parseWriterStep,
       jsonSchemaHint: [
         '{',

@@ -5,6 +5,8 @@
 
 'use strict';
 
+const { resolveLlmTimeout, applyLocalChatOptions } = require('./localLlm');
+
 /**
  * @typedef {Object} ChatMessage
  * @property {'system'|'user'|'assistant'} role
@@ -57,6 +59,25 @@ function emitStatus(hooks, payload) {
   }
 }
 
+function bindAbortSignal(parent, controller) {
+  if (!parent) return () => {};
+  if (parent.aborted) {
+    controller.abort();
+    return () => {};
+  }
+  const onAbort = () => controller.abort();
+  parent.addEventListener('abort', onAbort, { once: true });
+  return () => parent.removeEventListener('abort', onAbort);
+}
+
+function abortErrorMessage(signal, kind, timeoutMs, llm, base) {
+  const cancelled = signal?.aborted;
+  const label = kind === 'stream' ? '流式调用' : '调用';
+  return cancelled
+    ? `LLM ${label}已取消（profile=${llm.profileId}, model=${llm.model}, base=${base}）`
+    : `LLM ${label}超时（${timeoutMs}ms）（profile=${llm.profileId}, model=${llm.model}, base=${base}）`;
+}
+
 /**
  * 非流式 Chat Completions
  * @param {Object} options
@@ -65,23 +86,21 @@ function emitStatus(hooks, payload) {
  * @param {number} [options.temperature]
  * @param {number} [options.maxTokens]
  * @param {LlmChatHooks} [options.hooks]
+ * @param {number} [options.timeoutMs]
+ * @param {AbortSignal} [options.signal]
  * @returns {Promise<{ text: string, usage?: Record<string, number>, raw: unknown }>}
  */
 async function llmChat(options) {
-  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs } = options;
+  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs, signal } = options;
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
-  const isLocalOllama = llm.localOllama || llm.provider === 'ollama';
-  const effectiveTimeout = timeoutMs === 0 || isLocalOllama
-    ? 0
-    : (Number(timeoutMs) > 0 ? Number(timeoutMs) : 180000);
+  const effectiveTimeout = resolveLlmTimeout(llm, timeoutMs);
 
   emitStatus(hooks, { phase: 'llm', label: '正在调用模型…' });
 
-  const controller = effectiveTimeout > 0 ? new AbortController() : null;
-  const timer = effectiveTimeout > 0
-    ? setTimeout(() => controller.abort(), effectiveTimeout)
-    : null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  const unbind = bindAbortSignal(signal, controller);
 
   let res;
   try {
@@ -91,26 +110,25 @@ async function llmChat(options) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
       },
-      body: JSON.stringify({
+      body: JSON.stringify(applyLocalChatOptions(llm, {
         model: llm.model,
         messages,
         temperature,
         max_tokens: maxTokens,
         stream: false,
-      }),
-      signal: controller?.signal,
+      })),
+      signal: controller.signal,
     });
   } catch (err) {
     if (err?.name === 'AbortError') {
-      throw new Error(
-        `LLM 调用超时（${effectiveTimeout}ms）（profile=${llm.profileId}, model=${llm.model}, base=${base}）`,
-      );
+      throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, base));
     }
     const cause = err?.cause?.message || err?.cause?.code || '';
     const detail = cause ? `${err.message}: ${cause}` : err.message;
     throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
+    unbind();
   }
 
   const raw = await res.json().catch(() => ({}));
@@ -131,77 +149,102 @@ async function llmChat(options) {
  * @param {number} [options.temperature]
  * @param {number} [options.maxTokens]
  * @param {LlmChatHooks} options.hooks
+ * @param {number} [options.timeoutMs]
+ * @param {AbortSignal} [options.signal]
  * @returns {Promise<{ text: string, raw: unknown }>}
  */
 async function llmChatStream(options) {
-  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks } = options;
+  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs, signal } = options;
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
+  const effectiveTimeout = resolveLlmTimeout(llm, timeoutMs);
 
   emitStatus(hooks, { phase: 'llm', label: '正在流式生成…' });
 
-  let res;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  const unbind = bindAbortSignal(signal, controller);
+
   try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
-      },
-      body: JSON.stringify({
-        model: llm.model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: true,
-      }),
-    });
-  } catch (err) {
-    const cause = err?.cause?.message || err?.cause?.code || '';
-    const detail = cause ? `${err.message}: ${cause}` : err.message;
-    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
-  }
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
+        },
+        body: JSON.stringify(applyLocalChatOptions(llm, {
+          model: llm.model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          stream: true,
+        })),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw new Error(abortErrorMessage(signal, 'stream', effectiveTimeout, llm, base));
+      }
+      const cause = err?.cause?.message || err?.cause?.code || '';
+      const detail = cause ? `${err.message}: ${cause}` : err.message;
+      throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+    }
 
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => '');
-    throw new Error(`LLM stream ${res.status}: ${errBody.slice(0, 200)}`);
-  }
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      throw new Error(`LLM stream ${res.status}: ${errBody.slice(0, 200)}`);
+    }
 
-  const reader = res.body?.getReader();
-  if (!reader) {
-    return llmChat({ llm, messages, temperature, maxTokens, hooks });
-  }
+    const reader = res.body?.getReader();
+    if (!reader) {
+      return llmChat({ llm, messages, temperature, maxTokens, hooks, timeoutMs, signal });
+    }
 
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let text = '';
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const payload = trimmed.slice(5).trim();
-      if (!payload || payload === '[DONE]') continue;
+    while (true) {
+      let chunk;
       try {
-        const chunk = JSON.parse(payload);
-        const delta = chunk?.choices?.[0]?.delta?.content || '';
-        if (delta) {
-          text += delta;
-          hooks?.onDelta?.({ delta, text });
+        chunk = await reader.read();
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          throw new Error(abortErrorMessage(signal, 'stream', effectiveTimeout, llm, base));
         }
-      } catch {
-        // 忽略不完整 chunk
+        throw err;
+      }
+      const { done, value } = chunk;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(payload);
+          const delta = parsed?.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            text += delta;
+            hooks?.onDelta?.({ delta, text });
+          }
+        } catch {
+          // 忽略不完整 chunk
+        }
       }
     }
-  }
 
-  return { text: text.trim(), raw: null };
+    return { text: text.trim(), raw: null };
+  } finally {
+    clearTimeout(timer);
+    unbind();
+  }
 }
 
 /**

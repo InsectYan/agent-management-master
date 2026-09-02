@@ -82,6 +82,22 @@ class SkillInvokeService extends Service {
       throw err;
     }
 
+    const llmAbort = new AbortController();
+    let invokeFinished = false;
+    const onClientGone = () => {
+      if (!invokeFinished) llmAbort.abort();
+    };
+    ctx.req?.on?.('close', onClientGone);
+    ctx.req?.on?.('aborted', onClientGone);
+    ctx.res?.on?.('close', onClientGone);
+    ctx.state.llmAbort = llmAbort;
+    ctx.state._releaseLlmAbort = () => {
+      invokeFinished = true;
+      ctx.req?.off?.('close', onClientGone);
+      ctx.req?.off?.('aborted', onClientGone);
+      ctx.res?.off?.('close', onClientGone);
+    };
+
     return { skill, params, input, llm, executor };
   }
 
@@ -164,7 +180,11 @@ class SkillInvokeService extends Service {
    */
   async invoke({ skillName, ctx, bodyOverride }) {
     const prepared = await this._prepareInvoke({ skillName, ctx, bodyOverride });
-    return this._finalizeInvoke({ ...prepared, ctx });
+    try {
+      return await this._finalizeInvoke({ ...prepared, ctx });
+    } finally {
+      ctx.state._releaseLlmAbort?.();
+    }
   }
 
   /**
@@ -215,6 +235,7 @@ class SkillInvokeService extends Service {
     } catch (err) {
       emit('error', { message: err.message, status: err.status || 500 });
     } finally {
+      ctx.state._releaseLlmAbort?.();
       res.end();
     }
   }

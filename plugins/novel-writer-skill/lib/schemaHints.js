@@ -147,6 +147,7 @@ const BASIC_KEYS = [
   'title',
   'creative_intent',
   'summary',
+  'story_overview',
   'genre_path',
   'genre_category_id',
   'genre_subcategory_id',

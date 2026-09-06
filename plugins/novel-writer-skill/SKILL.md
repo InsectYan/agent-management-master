@@ -12,7 +12,7 @@
 
 | action | 说明 |
 |--------|------|
-| fill_basic | 按 scene / target_fields 填基础信息（可多字段） |
+| fill_basic | 按 scene / target_fields 填基础信息（可多字段：title / creative_intent / summary / story_overview） |
 | fill_world | 填世界观文本字段与 timeline[]（year + event） |
 | fill_factions | 门派/家族/国家等组织数组 |
 | fill_characters | 角色数组 + character_edges（role/relation 白名单） |

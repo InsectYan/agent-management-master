@@ -4,7 +4,7 @@
 
 1. 对照 `bound_context` 中的基础信息、世界观、门派、人物、大纲、章节目录。
 2. 已有 `deterministic_findings` 中的问题不要重复输出。
-3. 关注语义问题：立意跑偏、力量体系越级、人物动机矛盾、地理穿帮、大纲脱节。
+3. 关注语义问题：立意跑偏、**与 story_overview（小说概要）主线/基调不符**、力量体系越级、人物动机矛盾、地理穿帮、大纲脱节。简介（summary）只看卖点与剧透，不要用短简介替代概要做主线对照。
 4. `findings[].module` 只能是：basic、world、factions、characters、outline、content、continuity。
 5. `severity`：确定冲突用 error；可疑用 warning；建议用 info。
 6. 只输出 JSON，字段含 done、reply、summary、findings。

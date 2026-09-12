@@ -12,6 +12,8 @@ const LOCAL_TIMEOUT_MS = 600000;
 const REMOTE_TIMEOUT_MS = 300000;
 const LOCAL_DEFAULT_MAX_TOKENS = 2048;
 const REMOTE_DEFAULT_MAX_TOKENS = 4096;
+/** 主应用可选上限：128k */
+const MAX_TOKENS_CEILING = 131072;
 
 const LOCAL_PROVIDERS = new Set([
   'ollama',
@@ -51,12 +53,26 @@ function resolveLlmTimeout(llm, timeoutMs) {
 }
 
 /**
- * 解析 max_tokens：本地用 localMaxTokens（收窄），云端用 maxTokens（放宽）。
+ * 解析请求入参 / 主应用配置的 max_tokens。无效则返回 undefined。
+ * @param {unknown} value
+ * @returns {number|undefined}
+ */
+function parseOverrideMaxTokens(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return undefined;
+  return Math.min(Math.round(n), MAX_TOKENS_CEILING);
+}
+
+/**
+ * 解析 max_tokens：主应用覆盖 > 本地 localMaxTokens > 云端/技能 maxTokens > 模型目录默认。
  * @param {import('./types').LlmRuntimeConfig|null|undefined} llm
- * @param {{ maxTokens?: number, localMaxTokens?: number }} [opts]
+ * @param {{ maxTokens?: number, localMaxTokens?: number, overrideMaxTokens?: number }} [opts]
  * @returns {number}
  */
 function resolveMaxTokens(llm, opts = {}) {
+  const override = parseOverrideMaxTokens(opts.overrideMaxTokens);
+  if (override) return override;
+
   const local = isLocalLlm(llm);
   if (local) {
     const localN = Number(opts.localMaxTokens);
@@ -64,6 +80,8 @@ function resolveMaxTokens(llm, opts = {}) {
   }
   const n = Number(opts.maxTokens);
   if (Number.isFinite(n) && n > 0) return n;
+  const catalogN = Number(llm?.defaultMaxTokens);
+  if (Number.isFinite(catalogN) && catalogN > 0) return catalogN;
   return local ? LOCAL_DEFAULT_MAX_TOKENS : REMOTE_DEFAULT_MAX_TOKENS;
 }
 
@@ -84,8 +102,12 @@ function applyLocalChatOptions(llm, payload) {
 module.exports = {
   LOCAL_TIMEOUT_MS,
   REMOTE_TIMEOUT_MS,
+  LOCAL_DEFAULT_MAX_TOKENS,
+  REMOTE_DEFAULT_MAX_TOKENS,
+  MAX_TOKENS_CEILING,
   isLocalLlm,
   resolveLlmTimeout,
+  parseOverrideMaxTokens,
   resolveMaxTokens,
   applyLocalChatOptions,
 };

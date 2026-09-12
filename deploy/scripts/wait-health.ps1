@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Base = "http://127.0.0.1:4001",
   [int]$MaxWait = 120
 )

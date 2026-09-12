@@ -1,4 +1,4 @@
-# Show local Docker stack status
+﻿# Show local Docker stack status
 $ErrorActionPreference = "Continue"
 
 Write-Host "==> docker compose ps"

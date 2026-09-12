@@ -1,4 +1,4 @@
-# Pull OLLAMA_MODEL — 优先 Docker 容器，否则本机 ollama CLI
+﻿# Pull OLLAMA_MODEL — 优先 Docker 容器，否则本机 ollama CLI
 $ErrorActionPreference = "Stop"
 
 $model = $env:OLLAMA_MODEL

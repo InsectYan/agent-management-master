@@ -41,6 +41,30 @@ describe('test/lib/llm/localLlm.test.js', () => {
     assert.equal(resolveMaxTokens(remote, { maxTokens: 24576, localMaxTokens: 8192 }), 24576);
   });
 
+  it('maxTokens：主应用覆盖优先于本地收窄与技能默认', () => {
+    const local = { provider: 'ollama', defaultMaxTokens: 2048 };
+    const remote = { provider: 'zhipu', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', defaultMaxTokens: 4096 };
+    assert.equal(resolveMaxTokens(local, {
+      maxTokens: 24576,
+      localMaxTokens: 8192,
+      overrideMaxTokens: 24576,
+    }), 24576);
+    assert.equal(resolveMaxTokens(remote, {
+      maxTokens: 4096,
+      overrideMaxTokens: 32768,
+    }), 32768);
+  });
+
+  it('maxTokens：未覆盖时回落到模型目录默认', () => {
+    const local = { provider: 'ollama', defaultMaxTokens: 2048 };
+    assert.equal(resolveMaxTokens(local, {}), 2048);
+    assert.equal(resolveMaxTokens({
+      provider: 'deepseek',
+      baseUrl: 'https://api.deepseek.com/v1',
+      defaultMaxTokens: 8192,
+    }, {}), 8192);
+  });
+
   it('仅本地请求带 think:false', () => {
     const payload = { model: 'x', stream: false };
     assert.deepEqual(applyLocalChatOptions({ provider: 'ollama' }, payload).think, false);

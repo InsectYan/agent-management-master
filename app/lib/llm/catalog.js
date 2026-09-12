@@ -16,6 +16,7 @@
  * @property {'OPENAI_API_KEY'|'ZHIPU_API_KEY'|'DEEPSEEK_API_KEY'} [apiKeyEnv]
  * @property {boolean} [localOllama]
  * @property {string} [modelEnv]
+ * @property {number} [defaultMaxTokens]
  */
 
 /** @type {ProfileDef[]} 静态 profile 目录 */
@@ -28,6 +29,16 @@ const CATALOG = [
     baseUrl: 'http://localhost:11434/v1',
     localOllama: true,
     modelEnv: 'OLLAMA_MODEL',
+    defaultMaxTokens: 2048,
+  },
+  {
+    id: 'ollama-gpt-oss',
+    label: '本地 Ollama · gpt-oss:120b',
+    provider: 'ollama',
+    model: 'gpt-oss:120b',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 4096,
   },
   {
     id: 'openai-mini',
@@ -36,6 +47,7 @@ const CATALOG = [
     model: 'gpt-4o-mini',
     baseUrl: 'https://api.openai.com/v1',
     apiKeyEnv: 'OPENAI_API_KEY',
+    defaultMaxTokens: 4096,
   },
   {
     id: 'zhipu-flash',
@@ -44,6 +56,7 @@ const CATALOG = [
     model: 'glm-4-flash',
     baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
     apiKeyEnv: 'ZHIPU_API_KEY',
+    defaultMaxTokens: 4096,
   },
   {
     id: 'deepseek-chat',
@@ -52,6 +65,7 @@ const CATALOG = [
     model: 'deepseek-chat',
     baseUrl: 'https://api.deepseek.com/v1',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
+    defaultMaxTokens: 4096,
   },
   {
     id: 'deepseek-reasoner',
@@ -60,6 +74,7 @@ const CATALOG = [
     model: 'deepseek-reasoner',
     baseUrl: 'https://api.deepseek.com/v1',
     apiKeyEnv: 'DEEPSEEK_API_KEY',
+    defaultMaxTokens: 8192,
   },
 ];
 
@@ -87,7 +102,11 @@ function ollamaBaseUrl(def) {
  * @returns {string}
  */
 function ollamaModel(def) {
-  return (process.env[def.modelEnv || 'OLLAMA_MODEL'] || def.model).trim();
+  if (def.modelEnv) {
+    const fromEnv = (process.env[def.modelEnv] || '').trim();
+    if (fromEnv) return fromEnv;
+  }
+  return String(def.model || '').trim();
 }
 
 /**
@@ -138,6 +157,9 @@ function defToRuntime(def) {
     baseUrl: resolveBaseUrl(def),
     apiKey,
     localOllama: Boolean(def.localOllama),
+    defaultMaxTokens: Number(def.defaultMaxTokens) > 0
+      ? Number(def.defaultMaxTokens)
+      : (def.localOllama ? 2048 : 4096),
   };
 }
 
@@ -152,6 +174,9 @@ function listLlmProfiles() {
     provider: d.provider,
     model: d.localOllama ? ollamaModel(d) : d.model,
     available: profileAvailable(d),
+    default_max_tokens: Number(d.defaultMaxTokens) > 0
+      ? Number(d.defaultMaxTokens)
+      : (d.localOllama ? 2048 : 4096),
   }));
 }
 
@@ -182,6 +207,8 @@ function resolveLlmProfile(profileId, appSettings) {
   const aliases = {
     'deepseek-reasoner': 'deepseek-reasoner',
     deepseek: 'deepseek-chat',
+    'gpt-oss': 'ollama-gpt-oss',
+    'gpt-oss:120b': 'ollama-gpt-oss',
   };
   const normalizedId = (profileId || '').trim();
   const id = aliases[normalizedId] || normalizedId || getPlatformDefaultProfileId(appSettings);

@@ -15,7 +15,7 @@ if [ ! -f "$REPO_ROOT/.env" ]; then
   fi
 fi
 
-ARGS=(-f "$COMPOSE_FILE")
+ARGS=(--env-file "$REPO_ROOT/.env" -f "$COMPOSE_FILE")
 if [ "${AGENTM_DEV:-0}" = "1" ] && [ -f "$COMPOSE_DEV" ]; then
   ARGS+=(-f "$COMPOSE_DEV")
 fi

@@ -6,6 +6,7 @@
 'use strict';
 
 const { llmChat, llmAvailable } = require('../../llm/chat');
+const { resolveMaxTokens } = require('../../llm/localLlm');
 const { resolveTools } = require('../langchain/tools/registry');
 
 /**
@@ -124,7 +125,7 @@ async function runReact(options) {
           { role: 'user', content: conversation },
         ],
         temperature: 0.3,
-        maxTokens: 768,
+        maxTokens: resolveMaxTokens(llm, { maxTokens: 768, overrideMaxTokens: input._maxTokensOverride }),
       });
       text = result.text;
     } catch (err) {

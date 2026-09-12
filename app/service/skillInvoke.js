@@ -8,6 +8,7 @@
 
 const Service = require('egg').Service;
 const { resolveLlm } = require('../lib/llm/resolveLlm');
+const { parseOverrideMaxTokens } = require('../lib/llm/localLlm');
 const { resolveAction } = require('../lib/skill/skillDoc');
 const { registry } = require('../lib/schemes/registry');
 
@@ -72,6 +73,11 @@ class SkillInvokeService extends Service {
     const memQuery = input.message || input.topic || input.question || params.message || '';
     if (skill.memoryConfig?.enabled && !input._skipMemory) {
       input._memoryContext = await this.service.memoryEngine.getContext(skill.name, String(memQuery));
+    }
+
+    const overrideMaxTokens = parseOverrideMaxTokens(params.max_tokens ?? body.max_tokens ?? query.max_tokens);
+    if (overrideMaxTokens) {
+      input = { ...input, _maxTokensOverride: overrideMaxTokens };
     }
 
     const executor = registry.createExecutor(skill.scheme, skill);

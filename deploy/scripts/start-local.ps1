@@ -1,4 +1,4 @@
-# Local stack launcher
+﻿# Local stack launcher
 param(
   [Parameter(Position = 0)]
   [ValidateSet("docker-ollama", "host-ollama", "full")]
@@ -9,6 +9,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+  $utf8 = New-Object System.Text.UTF8Encoding $false
+  [Console]::OutputEncoding = $utf8
+  $OutputEncoding = $utf8
+}
 Set-Location (Join-Path $PSScriptRoot "..\..")
 
 $RootEnv = Join-Path (Get-Location) ".env"
@@ -75,7 +80,7 @@ if ($OllamaMode -eq "full") {
 if ($OllamaMode -eq "docker-ollama") {
   Write-Host "  Ollama    http://localhost:11434  (agentm local:pull-model)"
 } else {
-  Write-Host "  Ollama    host.docker.internal:11434  (本机需已运行 ollama serve)"
+  Write-Host "  Ollama    host.docker.internal:11434  (本机需先运行 ollama serve)"
 }
 if ($Dev) { Write-Host "  Dev mode  plugins/ mounted read-write" }
 Write-Host ""

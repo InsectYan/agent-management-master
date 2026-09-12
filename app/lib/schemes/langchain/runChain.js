@@ -6,6 +6,7 @@
 'use strict';
 
 const { llmChat, llmAvailable } = require('../../llm/chat');
+const { resolveMaxTokens } = require('../../llm/localLlm');
 const { resolveTools } = require('./tools/registry');
 const { mockWeatherData } = require('./tools/getWeather');
 
@@ -14,7 +15,7 @@ const { mockWeatherData } = require('./tools/getWeather');
  * @param {Object} options
  */
 async function formatWithLlm(options) {
-  const { llm, systemPrompt, userContent, hooks } = options;
+  const { llm, systemPrompt, userContent, hooks, overrideMaxTokens } = options;
   if (!llmAvailable(llm)) {
     return null;
   }
@@ -27,7 +28,7 @@ async function formatWithLlm(options) {
         { role: 'user', content: userContent },
       ],
       temperature: 0.5,
-      maxTokens: 512,
+      maxTokens: resolveMaxTokens(llm, { maxTokens: 512, overrideMaxTokens }),
     });
     return result.text;
   } catch {
@@ -75,6 +76,7 @@ async function runToolAgentChain(options) {
     hooks,
     systemPrompt,
     userContent: `用户查询城市：${city}\n工具数据：${JSON.stringify(toolData)}`,
+    overrideMaxTokens: input._maxTokensOverride,
   });
 
   const reply = llmReply || templateReply;

@@ -286,6 +286,7 @@ async function runLoop(options) {
     const maxTokens = resolveMaxTokens(llm, {
       maxTokens: loopConfig.maxTokens,
       localMaxTokens: loopConfig.localMaxTokens,
+      overrideMaxTokens: input._maxTokensOverride,
     });
 
     let parsed;

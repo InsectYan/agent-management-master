@@ -1,4 +1,4 @@
-# Reset dev stack
+﻿# Reset dev stack
 param(
   [Parameter(Position = 0)]
   [ValidateSet("docker-ollama", "host-ollama", "full")]

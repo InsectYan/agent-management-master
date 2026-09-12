@@ -65,3 +65,4 @@ bash deploy/shared/scripts/smoke-agent.sh
 - 启动 **Docker Desktop** 后再 `agentm local`
 - `compose.ps1` 检测 daemon；`smoke-docker.ps1` 原生 PowerShell 冒烟
 - `.editorconfig` 规定 `*.ps1` 使用 UTF-8 BOM
+- 国内拉不了 Docker Hub 时：Docker Engine 加上 `registry-mirrors`（如 `https://docker.1ms.run`），或在 `.env` 设置 `DOCKER_NODE_IMAGE=docker.1ms.run/library/node:22-alpine` 后重试 `agentm local`

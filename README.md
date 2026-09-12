@@ -97,6 +97,7 @@ docs/schemes/      # 各方案说明文档
 | **fitness-observation-match-skill** | 期望观测 vs API 响应文案比对 | testgen-sub（**TPL-API-CTX** 内容验证） |
 | **fitness-explore-skill** | 探索式多步链路规划 | testgen-sub（TS-05 + agent_hook.explore） |
 | **api-template-skill** | 接口模板生成与维护 | testgen-sub 接口模板管理 |
+| **ops-project-skill** | 扫描本地路径生成运维项目配置（目录/路由/总览+分流程） | ops-sub |
 | **perf-bottleneck-skill** | 压测结果瓶颈分析 | testgen-sub（TS-09-LOAD） |
 | **note-skill** | Pi 记事对话（示例） | 通用演示 |
 | **weather-skill** | LangChain 天气（示例） | 通用演示 |

@@ -27,6 +27,7 @@ services:
       MEMORY_FILES_DIR: /memory_files
       SQLITE_PATH: /app/data/agent.sqlite
       PLUGIN_DIR: plugins
+      HOST_PROJECTS_ROOT: /host-projects
       TESTGEN_BFF_URL: ${TESTGEN_BFF_URL:-http://host.docker.internal:5202}
       TESTGEN_INTERNAL_TOKEN: ${TESTGEN_INTERNAL_TOKEN:-}
     volumes:
@@ -34,6 +35,7 @@ services:
       - ../workspaces:/workspaces
       - ../memory_files:/memory_files
       - ../plugins:/app/plugins:ro
+      - ${HOST_PROJECTS_DIR:-E:/AI Tools/projects}:/host-projects:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

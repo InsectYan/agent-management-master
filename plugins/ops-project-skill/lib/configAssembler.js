@@ -2,15 +2,17 @@
 
 const { slug } = require('./projectScanner');
 const { groupRoutes, overviewHubs, bindFlowKeys, pathPrefix } = require('./flowBinding');
+const { applyFlowRisks } = require('./flowRisks');
+const { assembleAgentDocument } = require('./agentAssembler');
 
 const SCHEMA_ID = 'ops-project/v1';
-const TEMPLATE_VERSION = '1.0.0';
+const TEMPLATE_VERSION = '1.5.0';
 
 function emptyOverviewFlow(name) {
   return {
     key: 'overview',
     name: '项目总览',
-    description: `${name || '本项目'}按能力分簇：有业务衔接的模块连在一起，无衔接的单独成簇。目录/路由只进入自己绑定的那一条流程，不能进全部流程。`,
+    description: `${name || '本项目'}总览须画出完整链路：每种分叉场景独立成节点并接下文，禁止一个节点写「有 N 种场景」。分流程按能力少拆，每张图走完整条链。目录/路由只进自己绑定的那一条。`,
     ref_path: '',
     nodes: [
       { id: 'start', name: '开始', type: 'start', description: '', x: 80, y: 200 },
@@ -48,17 +50,46 @@ function pageFlow(groupKey, routes, index) {
     });
   });
   nodes.push({
-    id: 'act',
-    name: '本能力操作',
-    type: 'action',
-    description: '只描述本能力；请求对端时写「进入后端/Agent（黑盒）」，不展开对端内部',
+    id: 'api',
+    name: '本端请求',
+    type: 'api',
+    description: '写清方法+路径+关键入参。对端：进入后端/Agent（黑盒）。失败码写在 fail 分支',
     x: 260,
     y: 280,
   });
-  nodes.push({ id: 'end', name: '结束', type: 'end', description: '', x: 520, y: 280 });
+  nodes.push({
+    id: 'dec',
+    name: '回包/分支',
+    type: 'decision',
+    description: '按回包字段分流（如 message_type / code）。每种成功形态在 description 列全，勿省略',
+    x: 480,
+    y: 280,
+  });
+  nodes.push({
+    id: 'ok',
+    name: '成功落地',
+    type: 'action',
+    description: '落库字段 / 出卡组件 / 下一步标记。涉及的 skill 或 op 写名',
+    x: 700,
+    y: 200,
+  });
+  nodes.push({
+    id: 'fail',
+    name: '失败收口',
+    type: 'action',
+    severity: 'risk',
+    description: '错误码与用户可见结果。对照 extra_json.errors',
+    risk_note: '失败当成功结束会写错账或丢掉错误码，后续节点无法对上真实结果。',
+    x: 700,
+    y: 360,
+  });
+  nodes.push({ id: 'end', name: '结束', type: 'end', description: '', x: 900, y: 200 });
   const lastPage = `p${routes.length}`;
-  edges.push({ id: 'e-act', source: lastPage, target: 'act', label: '', type: 'next' });
-  edges.push({ id: 'e-end', source: 'act', target: 'end', label: '完成', type: 'success' });
+  edges.push({ id: 'e-act', source: lastPage, target: 'api', label: '', type: 'next' });
+  edges.push({ id: 'e-dec', source: 'api', target: 'dec', label: '回包', type: 'success' });
+  edges.push({ id: 'e-ok', source: 'dec', target: 'ok', label: '成功形态', type: 'success' });
+  edges.push({ id: 'e-fail', source: 'dec', target: 'fail', label: '失败码', type: 'fail' });
+  edges.push({ id: 'e-end', source: 'ok', target: 'end', label: '完成', type: 'success' });
 
   return {
     key: groupKey,
@@ -139,15 +170,22 @@ function buildOverview(name, featureFlows, routes) {
     }
   });
 
-  const lastFeat = featureFlows.length ? `feat-${featureFlows.length}` : null;
-  if (lastFeat) {
-    overview.edges.push({
-      id: 'e-end',
-      source: lastFeat,
-      target: 'end',
-      label: '梳理结束',
-      type: 'success',
-    });
+  const lastByPrefix = new Map();
+  featureFlows.forEach((flow, index) => {
+    lastByPrefix.set(prefixOf.get(flow.key) || 'root', `feat-${index + 1}`);
+  });
+  if (lastByPrefix.size) {
+    let endIndex = 0;
+    for (const source of lastByPrefix.values()) {
+      endIndex += 1;
+      overview.edges.push({
+        id: `e-end-${endIndex}`,
+        source,
+        target: 'end',
+        label: '梳理结束',
+        type: 'success',
+      });
+    }
   } else {
     overview.nodes.splice(1, 0, {
       id: 'n-empty',
@@ -166,11 +204,19 @@ function buildOverview(name, featureFlows, routes) {
 }
 
 function assembleDocument({ scan, basic, hint }) {
-  const name = String(basic.name || pathName(scan.source_path) || '未命名项目').trim();
-  const type = [ 'frontend', 'backend', 'fullstack', 'agent' ].includes(basic.type || basic.project_type)
-    ? (basic.type || basic.project_type)
+  const requested = basic.type || basic.project_type;
+  const type = [ 'frontend', 'backend', 'fullstack', 'agent' ].includes(requested)
+    ? requested
     : (scan.guessed_type || 'frontend');
-  const routes = (type === 'backend' || type === 'agent') ? [] : [ ...(scan.routes || []) ];
+  if (type === 'agent' || scan.agent?.is_agent) {
+    return assembleAgentDocument({
+      scan,
+      basic: { ...basic, type: 'agent', name: basic.name },
+      hint,
+    });
+  }
+  const name = String(basic.name || pathName(scan.source_path) || '未命名项目').trim();
+  const routes = [ ...(scan.routes || []) ];
   const directory_tree = scan.directory_tree || [];
 
   let workingRoutes = routes;
@@ -211,8 +257,18 @@ function assembleDocument({ scan, basic, hint }) {
     directory_tree,
     routes: workingRoutes,
     flows: [ overview, ...featureFlows ],
+    extra_json: {
+      detail_required: true,
+      node_legend: '入口；skill；意图刚性；查/op；围栏/错误码；回包字段；对端黑盒；红=风险；橙=警告',
+      message_types: {},
+      shell_ops: {},
+      api_ops: {},
+      skills: {},
+      errors: {},
+      risks: {},
+    },
   };
-  return bindFlowKeys(document);
+  return applyFlowRisks(bindFlowKeys(document), scan);
 }
 
 function pathName(sourcePath) {

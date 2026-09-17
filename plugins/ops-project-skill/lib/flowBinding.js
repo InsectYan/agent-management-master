@@ -27,10 +27,23 @@ const SKIP_SEGMENTS = new Set([
 const CRUD_LEAF = /^(create|edit|detail|new|list|index|add|update|:id|:[a-zA-Z_][\w]*)$/i;
 
 const CLUSTERS = [
+  { key: 'coach-turn', re: /coach-turn|pipeline\/coach/i },
+  { key: 'member-turn', re: /member-turn|pipeline\/member/i },
+  { key: 'manager-turn', re: /manager-turn|pipeline\/manager/i },
+  { key: 'cloud-ops', re: /wipe|cloud-data|export-rds|export-nas|\/ops\//i },
+  { key: 'wiki', re: /knowledge|wiki/i },
   { key: 'auth', re: /(^|\/|-)(login|signin|signup|register|invite|identity|unopened|oauth)(\/|-|$)/i },
+  { key: 'users', re: /(^|\/|-)(users?|members?|accounts?)(\/|-|$)/i },
+  { key: 'audit', re: /(audit[-_]?logs?|audit)(\/|-|$)/i },
+  { key: 'deploy', re: /(^|\/|-)(deploy|release|publish|ci-cd)(\/|-|$)/i },
+  { key: 'project', re: /(projects?|workspace|repos?)/i },
+  { key: 'novel', re: /(novels?|chapters?|writing|manuscript)/i },
+  { key: 'qa', re: /(^|\/|-)(qa|chat|sessions?)(\/|-|$)/i },
   { key: 'assess', re: /(assess|screening|questionnaire|body-composition|circumference|fitness-test|joint-screen)/i },
   { key: 'settings', re: /(settings|account-security|feedback|about)$/i },
 ];
+
+const MAX_FEATURE_FLOWS = 10;
 
 function existingFlowKeys(flows) {
   return new Set((flows || []).map(item => item.key).filter(key => key && key !== 'overview'));
@@ -62,7 +75,33 @@ function groupRoutes(routes) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(route);
   }
-  return groups;
+  return compactGroups(groups);
+}
+
+function compactGroups(groups) {
+  if (!groups || groups.size <= MAX_FEATURE_FLOWS) return groups;
+  const merged = new Map();
+  for (const [ key, list ] of groups.entries()) {
+    if (list.length > 1) {
+      merged.set(key, list);
+      continue;
+    }
+    const prefix = pathPrefix(list[0].path);
+    const bucket = `feat-${slug(prefix)}`;
+    if (!merged.has(bucket)) merged.set(bucket, []);
+    merged.get(bucket).push(...list);
+  }
+  if (merged.size <= MAX_FEATURE_FLOWS) return merged;
+
+  const keep = new Map();
+  const misc = [];
+  const sorted = [ ...merged.entries() ].sort((a, b) => b[1].length - a[1].length);
+  for (const [ key, list ] of sorted) {
+    if (keep.size < MAX_FEATURE_FLOWS - 1) keep.set(key, list);
+    else misc.push(...list);
+  }
+  if (misc.length) keep.set('feat-misc', misc);
+  return keep;
 }
 
 function pathPrefix(routePath) {
@@ -185,6 +224,7 @@ module.exports = {
   GENERIC_NAMES,
   featureKeyFromPath,
   groupRoutes,
+  compactGroups,
   pathPrefix,
   bindFlowKeys,
   overviewHubs,

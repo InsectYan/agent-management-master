@@ -7,42 +7,85 @@ const SKIP_DIRS = new Set([
   'node_modules', '.git', 'dist', 'build', 'coverage', '.output',
   '.nuxt', '.next', '.turbo', '.cache', '.idea', '.vscode',
   '__pycache__', 'vendor', 'tmp', 'temp', 'logs',
+  'workspaces',
 ]);
 
 const SKIP_FILES = new Set([ '.DS_Store', 'Thumbs.db' ]);
 
 const PAGE_FILE_RE = /\.(vue|jsx|tsx|js|ts)$/i;
-const ROUTER_HINT_RE = /(createRouter|createWebHistory|routes\s*[:=])/;
+const ROUTER_HINT_RE = /(createRouter|createWebHistory|routes\s*[:=]|router\.(get|post|put|patch|delete|resources)|app\.(get|post|put|patch|delete|use)\()/;
 const ROUTE_PATH_RE = /path\s*:\s*['"`]([^'"`]+)['"`]/;
 const ROUTE_NAME_RE = /name\s*:\s*['"`]([^'"`]+)['"`]/;
 const ROUTE_COMP_RE = /component\s*:\s*(?:\(\)\s*=>\s*import\(['"`]([^'"`]+)['"`]\)|([A-Za-z0-9_]+))/;
 const ROUTE_TITLE_RE = /title\s*:\s*['"`]([^'"`]+)['"`]/;
 const ROUTE_REDIRECT_RE = /redirect\s*:/;
+const EGG_ROUTE_RE = /router\.(get|post|put|patch|delete|resources|redirect)\(\s*['"`]([^'"`]+)['"`]/gi;
 
-function extractObjectBlocks(text) {
+function findMatching(text, start) {
+  const open = text[start];
+  const close = open === '{' ? '}' : open === '[' ? ']' : null;
+  if (!close) return -1;
+  let depth = 0;
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+    if (ch === '"' || ch === '\'' || ch === '`') {
+      const quote = ch;
+      i += 1;
+      while (i < text.length && text[i] !== quote) {
+        if (text[i] === '\\') i += 1;
+        i += 1;
+      }
+      continue;
+    }
+    if (ch === open) depth += 1;
+    else if (ch === close) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function findObjectBlocks(text, maxLen = 20000) {
   const blocks = [];
   for (let i = 0; i < text.length; i += 1) {
     if (text[i] !== '{') continue;
-    let depth = 0;
-    for (let j = i; j < text.length; j += 1) {
-      if (text[j] === '{') depth += 1;
-      else if (text[j] === '}') {
-        depth -= 1;
-        if (depth === 0) {
-          const block = text.slice(i, j + 1);
-          if (
-            ROUTE_PATH_RE.test(block)
-            && block.length < 800
-            && !/children\s*:/.test(block)
-          ) {
-            blocks.push(block);
-          }
-          break;
-        }
-      }
+    const end = findMatching(text, i);
+    if (end < 0) continue;
+    const block = text.slice(i, end + 1);
+    if (block.length <= maxLen && ROUTE_PATH_RE.test(block)) {
+      blocks.push({ block, start: i, end: end + 1 });
     }
+    i = end;
   }
   return blocks;
+}
+
+function topLevelBlocks(blocks) {
+  return blocks.filter((item, index) => !blocks.some((other, j) => (
+    j !== index && other.start < item.start && other.end > item.end
+  )));
+}
+
+function joinRoutePaths(parent, child) {
+  const leaf = String(child || '').trim();
+  if (!leaf || leaf === '*') return '';
+  if (leaf.startsWith('/')) return leaf.replace(/\/+/g, '/');
+  const base = String(parent || '').replace(/\/$/, '');
+  if (!base || base === '/') return `/${leaf.replace(/^\//, '')}`;
+  return `${base}/${leaf}`.replace(/\/+/g, '/');
+}
+
+function extractNamedArrays(text, name) {
+  const re = new RegExp(`${name}\\s*:\\s*\\[`, 'g');
+  const arrays = [];
+  let match;
+  while ((match = re.exec(text))) {
+    const start = match.index + match[0].length - 1;
+    const end = findMatching(text, start);
+    if (end > start) arrays.push(text.slice(start, end + 1));
+  }
+  return arrays;
 }
 const MAX_NODES = 800;
 const MAX_FILE_READ = 96;
@@ -57,7 +100,9 @@ function safeStat(target) {
 }
 
 function shouldSkipDir(name) {
-  return SKIP_DIRS.has(name) || name.startsWith('.');
+  if (SKIP_DIRS.has(name)) return true;
+  if (name === '.pi') return false;
+  return name.startsWith('.');
 }
 
 function slug(value) {
@@ -70,20 +115,31 @@ function slug(value) {
 }
 
 function guessType(absPath) {
+  const { looksLikeAgent } = require('./agentScan');
+  if (looksLikeAgent(absPath)) return 'agent';
+  const hasSkill = fs.existsSync(path.join(absPath, 'SKILL.md'));
+  const hasPlugins = fs.existsSync(path.join(absPath, 'plugins'));
   const pkg = path.join(absPath, 'package.json');
+  let frontend = false;
+  let backend = false;
   if (fs.existsSync(pkg)) {
     try {
       const json = JSON.parse(fs.readFileSync(pkg, 'utf8'));
       const deps = { ...json.dependencies, ...json.devDependencies };
       const scripts = JSON.stringify(json.scripts || {});
-      if (deps.vue || deps['vue-router'] || deps.vite) return 'frontend';
-      if (deps.egg || deps['egg-core'] || /egg/.test(scripts)) return 'backend';
+      frontend = !!(deps.vue || deps['vue-router'] || deps.vite || deps.react);
+      backend = !!(deps.egg || deps['egg-core'] || /egg/.test(scripts) || deps.express || deps.koa);
     } catch {
       /* ignore */
     }
   }
-  if (fs.existsSync(path.join(absPath, 'app', 'router.js'))) return 'backend';
-  if (fs.existsSync(path.join(absPath, 'src', 'router'))) return 'frontend';
+  if (fs.existsSync(path.join(absPath, 'app', 'router.js'))) backend = true;
+  if (fs.existsSync(path.join(absPath, 'src', 'router'))) frontend = true;
+  if (hasSkill && !frontend && !backend) return 'agent';
+  if (frontend && backend) return 'fullstack';
+  if (frontend) return 'frontend';
+  if (backend) return 'backend';
+  if (hasSkill || hasPlugins) return 'agent';
   return 'fullstack';
 }
 
@@ -178,6 +234,14 @@ function describeDir(name, rel) {
     test: '测试',
     frontend: '前端',
     backend: '后端',
+    harness: '回合编排',
+    pi: 'Pi 灶台',
+    extensions: 'Pi 插件',
+    memory: '手写本',
+    wiki: '百科只读',
+    http: '接套壳电话',
+    shell: '打给套壳',
+    'workspaces-templates': '三角色菜谱模板',
   };
   return map[name] || (rel ? `${rel}` : '');
 }
@@ -191,35 +255,126 @@ function describeFile(name, rel) {
   return '';
 }
 
-function extractRoutesFromText(text, fileRel) {
-  const routes = [];
-  const seen = new Set();
-  for (const block of extractObjectBlocks(text)) {
-    if (ROUTE_REDIRECT_RE.test(block) && !ROUTE_NAME_RE.test(block)) continue;
-    const pathMatch = block.match(ROUTE_PATH_RE);
+function pushRoute(routes, seen, fileRel, fullPath, block, extra = {}) {
+  if (!fullPath || fullPath === '*' || /pathMatch\(/.test(fullPath) || seen.has(fullPath)) return;
+  if (ROUTE_REDIRECT_RE.test(block) && !ROUTE_NAME_RE.test(block) && !ROUTE_COMP_RE.test(block)) return;
+  const nameMatch = block.match(ROUTE_NAME_RE);
+  const compMatch = block.match(ROUTE_COMP_RE);
+  const titleMatch = block.match(ROUTE_TITLE_RE);
+  const component = extra.component
+    || (compMatch?.[1] && path.basename(compMatch[1], path.extname(compMatch[1])))
+    || compMatch?.[2]
+    || '';
+  if (!nameMatch && !component && !extra.allowBare) return;
+  if (fullPath === '/' && !nameMatch && !extra.allowBare) return;
+  seen.add(fullPath);
+  const name = extra.name || nameMatch?.[1] || slug(fullPath.replace(/^\//, '') || 'home');
+  routes.push({
+    path: fullPath.startsWith('/') ? fullPath : `/${fullPath}`,
+    name,
+    component,
+    meta: { title: extra.title || titleMatch?.[1] || name, auth: extra.auth ?? /auth\s*:\s*true/.test(block) },
+    flow_key: '',
+    children: [],
+    _from: fileRel,
+  });
+}
+
+function collectVueRouteObjects(text, parentPath, routes, seen, fileRel) {
+  const blocks = topLevelBlocks(findObjectBlocks(text));
+  for (const item of blocks) {
+    const pathMatch = item.block.match(ROUTE_PATH_RE);
     const routePath = pathMatch?.[1];
-    if (!routePath || routePath === '*' || seen.has(routePath)) continue;
-    const nameMatch = block.match(ROUTE_NAME_RE);
-    const compMatch = block.match(ROUTE_COMP_RE);
-    const titleMatch = block.match(ROUTE_TITLE_RE);
-    const component = (compMatch?.[1] && path.basename(compMatch[1], path.extname(compMatch[1])))
-      || compMatch?.[2]
-      || '';
-    if (!nameMatch && !component) continue;
-    if (routePath === '/' && !nameMatch) continue;
+    const fullPath = joinRoutePaths(parentPath, routePath);
+    const childArrays = extractNamedArrays(item.block, 'children');
+    if (fullPath) {
+      pushRoute(routes, seen, fileRel, fullPath, item.block, { allowBare: childArrays.length > 0 });
+    }
+    const nextParent = fullPath || parentPath;
+    for (const arr of childArrays) {
+      collectVueRouteObjects(arr, nextParent, routes, seen, fileRel);
+    }
+  }
+}
+
+function extractEggRoutes(text, fileRel, seen) {
+  const routes = [];
+  const re = new RegExp(EGG_ROUTE_RE.source, 'gi');
+  let match;
+  while ((match = re.exec(text))) {
+    const method = match[1].toUpperCase();
+    const raw = match[2];
+    if (!raw.startsWith('/') || raw === '/') continue;
+    const routePath = raw.replace(/\/:[^/]+/g, '/:id');
+    if (seen.has(`${method}:${routePath}`)) continue;
+    seen.add(`${method}:${routePath}`);
+    if (seen.has(routePath)) {
+      const existed = routes.find(item => item.path === routePath);
+      if (existed && !existed.component.includes(method)) {
+        existed.component = `${existed.component}|${method}`;
+        existed.meta.title = `${existed.component} ${routePath}`;
+      }
+      continue;
+    }
     seen.add(routePath);
-    const name = nameMatch?.[1] || slug(routePath.replace(/^\//, '') || 'home');
+    const name = slug(routePath.replace(/^\//, '').replace(/:/g, ''));
     routes.push({
-      path: routePath.startsWith('/') ? routePath : `/${routePath}`,
+      path: routePath,
       name,
-      component,
-      meta: { title: titleMatch?.[1] || name, auth: /auth\s*:\s*true/.test(block) },
+      component: method,
+      meta: { title: `${method} ${routePath}`, auth: !/^\/api\/(health|auth\/(login|register|logout))/.test(routePath) },
       flow_key: '',
       children: [],
       _from: fileRel,
     });
   }
   return routes;
+}
+
+function extractRoutesFromText(text, fileRel) {
+  const routes = [];
+  const seen = new Set();
+  const routeArrays = extractNamedArrays(text, 'routes');
+  if (routeArrays.length) {
+    for (const arr of routeArrays) {
+      collectVueRouteObjects(arr, '', routes, seen, fileRel);
+    }
+  } else {
+    collectVueRouteObjects(text, '', routes, seen, fileRel);
+  }
+  routes.push(...extractEggRoutes(text, fileRel, seen));
+  return routes;
+}
+
+function pathParseName(name) {
+  return String(name || '').replace(/\.[^.]+$/, '');
+}
+
+function extractFileBasedRoutes(files, pathSet) {
+  const routes = [];
+  for (const file of files || []) {
+    if (!isPageFile(file.name, file.rel)) continue;
+    const posix = file.rel.replace(/\\/g, '/');
+    const parts = posix.split('/');
+    const viewsIdx = parts.findIndex(part => /^(views|pages|routes)$/i.test(part));
+    const segs = (viewsIdx >= 0 ? parts.slice(viewsIdx + 1) : [ file.name ])
+      .map(part => pathParseName(part))
+      .filter(part => part && !/^index$/i.test(part));
+    const routePath = `/${segs.map(part => slug(part)).join('/')}`.replace(/\/+/g, '/') || '/';
+    if (pathSet.has(routePath) || routePath === '/') continue;
+    pathSet.add(routePath);
+    const name = slug(pathParseName(file.name));
+    routes.push({
+      path: routePath,
+      name,
+      component: pathParseName(file.name),
+      meta: { title: pathParseName(file.name), auth: false },
+      flow_key: '',
+      children: [],
+      _from: file.rel,
+    });
+  }
+  return routes.slice(0, 40);
 }
 
 const SKIP_APPJSON = new Set([ 'pages', 'subpackages' ]);
@@ -265,8 +420,12 @@ function collectRouterFiles(files) {
   return files.filter(item => {
     const posix = item.rel.replace(/\\/g, '/');
     if (!/\.(js|ts)$/i.test(item.name)) return false;
-    return /router/.test(posix) || item.name === 'router.js';
-  }).slice(0, 12);
+    return /router/.test(posix)
+      || item.name === 'router.js'
+      || /\/app\/router\//.test(posix)
+      || /\/src\/http\//.test(posix)
+      || /\/src\/index\.ts$/.test(posix);
+  }).slice(0, 40);
 }
 
 function resolveSourcePath(sourcePath) {
@@ -326,7 +485,9 @@ function scanProject(sourcePath) {
       if (size > MAX_FILE_BYTES) continue;
       const text = fs.readFileSync(file.abs, 'utf8');
       readCount += 1;
-      if (!ROUTER_HINT_RE.test(text) && !/path\s*:/.test(text)) continue;
+      if (!ROUTER_HINT_RE.test(text) && !/path\s*:/.test(text) && !/router\.(get|post)/.test(text)) {
+        continue;
+      }
       routes.push(...extractRoutesFromText(text, file.rel));
     } catch {
       /* skip unreadable */
@@ -342,6 +503,17 @@ function scanProject(sourcePath) {
     pathSet.add(route.path);
     uniqueRoutes.push(route);
   }
+  if (uniqueRoutes.length < 2) {
+    uniqueRoutes.push(...extractFileBasedRoutes(acc.files, pathSet));
+  }
+
+  const { scanAgentAssets } = require('./agentScan');
+  const agent = scanAgentAssets(resolved, acc.files);
+  for (const route of agent.http_routes || []) {
+    if (pathSet.has(route.path)) continue;
+    pathSet.add(route.path);
+    uniqueRoutes.push(route);
+  }
 
   return {
     source_path: resolved,
@@ -351,6 +523,7 @@ function scanProject(sourcePath) {
     file_count: acc.files.length,
     node_count: acc.nodes,
     router_files: routerFiles.map(item => item.rel),
+    agent,
   };
 }
 
@@ -358,4 +531,6 @@ module.exports = {
   scanProject,
   slug,
   isPageFile,
+  extractRoutesFromText,
+  extractFileBasedRoutes,
 };

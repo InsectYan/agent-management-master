@@ -12,7 +12,9 @@ const {
   mergeHintIntoDocument,
   isValidDocument,
 } = require('./lib/configAssembler');
+const { assembleAgentDocument } = require('./lib/agentAssembler');
 const { bindFlowKeys } = require('./lib/flowBinding');
+const { applyFlowRisks } = require('./lib/flowRisks');
 
 function pickDocument(result, draft) {
   const output = result.output || {};
@@ -26,17 +28,19 @@ function pickDocument(result, draft) {
 
 function summarize(document, scan) {
   const flows = document.flows || [];
+  const riskCount = Object.keys(document.extra_json?.risks || {}).length;
   return [
     `目录节点 ${scan.node_count || 0}`,
     `路由 ${document.routes?.length || 0}`,
     `流程 ${flows.length}（含总览）`,
+    `风险/警告 ${riskCount}`,
   ].join(' · ');
 }
 
 module.exports = {
   name: 'ops-project-skill',
-  version: '1.1.0',
-  description: '运维项目配置生成：扫描本地路径，产出目录/路由/总览+按能力绑定的流程图（目录与路由只进对应流程）',
+  version: '1.5.0',
+  description: '运维项目配置生成：Agent 画全 message_type 与红橙风险；总览画全链路；目录路由点对点绑定',
   scheme: 'loop',
   routes: [
     {
@@ -54,8 +58,8 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.2,
-      maxTokens: 8192,
-      jsonSchemaHint: '{ "done": true, "summary": string, "document": { schema, name, type, source_path, directory_tree, routes, flows } }',
+      maxTokens: 16384,
+      jsonSchemaHint: '{ "done": true, "summary": string, "document": { schema, name, type, source_path, directory_tree, routes, flows, extra_json } }',
       userContextFields: [ 'scan_summary', 'hint', 'basic', 'draft_preview' ],
     },
   },
@@ -114,7 +118,7 @@ module.exports = {
             flow_key: item.flow_key,
           })),
           flow_keys: draft.flows.map(item => item.key),
-          binding_rule: '每个路由/页面目录只绑一条 flow_key；components/utils 等不绑；overview 不写到叶子上',
+          binding_rule: '每个路由/页面目录只绑一条 flow_key；风险/警告必须是图上的红橙节点，禁止只写在 description',
         }),
       };
     },
@@ -132,7 +136,25 @@ module.exports = {
         if (!document.source_path && scan?.source_path) {
           document.source_path = scan.source_path;
         }
-        document = bindFlowKeys(document);
+        if (scan?.agent?.is_agent || document.type === 'agent') {
+          const detailed = assembleAgentDocument({
+            scan,
+            basic: {
+              name: document.name || params.name,
+              type: 'agent',
+              description: document.description || params.description,
+              repo_url: document.repo_url || params.repo_url,
+              status: document.status || params.status,
+            },
+            hint: params.hint,
+          });
+          detailed.name = document.name || detailed.name;
+          detailed.description = document.description || detailed.description;
+          document = detailed;
+        } else {
+          document = bindFlowKeys(document);
+          document = applyFlowRisks(document, scan);
+        }
       } else {
         const scanNow = scanProject(params.source_path);
         document = assembleDocument({

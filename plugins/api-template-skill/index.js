@@ -13,6 +13,7 @@ const SKILL_DIR = __dirname;
 
 module.exports = {
   name: 'api-template-skill',
+  project: 'testgen',
   version: '1.0.0',
   description: 'Loop 方案 — 根据接口文档多步生成 HTTP 请求模板',
   scheme: 'loop',

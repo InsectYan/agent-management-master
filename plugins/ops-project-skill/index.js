@@ -39,6 +39,7 @@ function summarize(document, scan) {
 
 module.exports = {
   name: 'ops-project-skill',
+  project: 'ops',
   version: '1.5.0',
   description: '运维项目配置生成：Agent 画全 message_type 与红橙风险；总览画全链路；目录路由点对点绑定',
   scheme: 'loop',

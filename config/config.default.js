@@ -93,6 +93,7 @@ module.exports = appInfo => {
     /** Skill 插件扫描目录 */
     pluginDir: resolvePath(appInfo.baseDir, process.env.PLUGIN_DIR, 'plugins'),
     workspacesRoot: resolvePath(appInfo.baseDir, process.env.WORKSPACES_ROOT, 'workspaces'),
+    knowledgeRoot: resolvePath(appInfo.baseDir, process.env.KNOWLEDGE_ROOT, 'knowledge'),
     readyDelayMs: Number(process.env.READY_DELAY_MS || 1000),
     sqlitePath: process.env.SQLITE_PATH || '',
     databaseUrl: process.env.DATABASE_URL || '',

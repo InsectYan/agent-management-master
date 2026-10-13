@@ -7,6 +7,7 @@
 
 module.exports = {
   name: 'research-skill',
+  project: 'platform',
   version: '0.1.0',
   description: 'Loop 方案示例 — 多步调研',
   scheme: 'loop',

@@ -9,6 +9,7 @@ const { parseWriterStep } = require('./lib/schemaHints');
 
 module.exports = {
   name: 'novel-writer-skill',
+  project: 'novel',
   version: '0.1.0',
   description: '小说结构化生成：基础信息、世界观、门派、人物、大纲、章节与单章正文 patch',
   scheme: 'loop',

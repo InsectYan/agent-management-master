@@ -23,44 +23,45 @@ function sanitize(value) {
  * @param {string} skillName
  * @returns {string}
  */
-function skillWorkspacePath(workspacesRoot, skillName) {
-  return path.join(workspacesRoot, `skill_${sanitize(skillName)}`);
+function skillWorkspacePath(workspacesRoot, skillName, projectId) {
+  const project = String(projectId || '').trim();
+  if (!project) throw new Error('工作区需要 projectId');
+  return path.join(workspacesRoot, sanitize(project), `skill_${sanitize(skillName)}`);
+}
+
+/**
+ * 会话 jsonl
+ * @param {string} workspacesRoot
+ * @param {string} projectId
+ * @param {string} skillName
+ * @param {string} sessionId
+ */
+function sessionJsonlPath(workspacesRoot, projectId, skillName, sessionId) {
+  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId), `${sanitize(sessionId)}.jsonl`);
 }
 
 /**
  * 会话目录
  * @param {string} workspacesRoot
+ * @param {string} projectId
  * @param {string} skillName
  * @param {string} sessionId
  * @returns {string}
  */
-function sessionDir(workspacesRoot, skillName, sessionId) {
-  return path.join(skillWorkspacePath(workspacesRoot, skillName), 'sessions', sanitize(sessionId));
+function sessionDir(workspacesRoot, projectId, skillName, sessionId) {
+  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId), 'sessions', sanitize(sessionId));
 }
 
 /**
- * 初始化 Skill 工作区（AGENTS.md + 可选 SKILL.md 副本）
+ * 初始化 Skill 工作区。文案留在插件目录，这里只建目录。
  * @param {Object} options
  * @param {string} options.workspacesRoot
  * @param {Object} options.skill
  */
 function initSkillWorkspace(options) {
   const { workspacesRoot, skill } = options;
-  const cwd = skillWorkspacePath(workspacesRoot, skill.name);
+  const cwd = skillWorkspacePath(workspacesRoot, skill.name, skill.project);
   fs.mkdirSync(cwd, { recursive: true });
-
-  const agentsPath = path.join(cwd, 'AGENTS.md');
-  if (!fs.existsSync(agentsPath)) {
-    const purpose = skill.skillDoc?.purpose || skill.description || skill.name;
-    fs.writeFileSync(agentsPath, `# ${skill.name}\n\n${purpose}\n\n本轮须 write sessions/<id>/outbox.json（合法 JSON，含 reply 字段）。\n`, 'utf-8');
-  }
-
-  const skillMdSrc = path.join(skill.dirPath, 'SKILL.md');
-  const skillMdDst = path.join(cwd, 'SKILL.md');
-  if (fs.existsSync(skillMdSrc) && !fs.existsSync(skillMdDst)) {
-    fs.copyFileSync(skillMdSrc, skillMdDst);
-  }
-
   return cwd;
 }
 
@@ -68,6 +69,7 @@ function initSkillWorkspace(options) {
  * 物化本轮 inbox / context，清理旧 outbox
  * @param {Object} options
  * @param {string} options.workspacesRoot
+ * @param {string} options.projectId
  * @param {string} options.skillName
  * @param {string} options.sessionId
  * @param {string} options.message - 富化后的 inbox 正文
@@ -75,9 +77,9 @@ function initSkillWorkspace(options) {
  * @returns {{ cwd: string, session_dir: string, outbox_path: string }}
  */
 function materializeTurn(options) {
-  const { workspacesRoot, skillName, sessionId, message, context } = options;
-  const cwd = skillWorkspacePath(workspacesRoot, skillName);
-  const dir = sessionDir(workspacesRoot, skillName, sessionId);
+  const { workspacesRoot, projectId, skillName, sessionId, message, context } = options;
+  const cwd = skillWorkspacePath(workspacesRoot, skillName, projectId);
+  const dir = sessionDir(workspacesRoot, projectId, skillName, sessionId);
   fs.mkdirSync(dir, { recursive: true });
 
   const outboxPath = path.join(dir, 'outbox.json');
@@ -119,6 +121,7 @@ function writeOutbox(outboxPath, outbox) {
 module.exports = {
   sanitize,
   skillWorkspacePath,
+  sessionJsonlPath,
   sessionDir,
   initSkillWorkspace,
   materializeTurn,

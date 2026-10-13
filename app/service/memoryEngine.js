@@ -43,13 +43,22 @@ class MemoryEngineService extends Service {
         instance = new PgVectorMemory({
           skillName: skill.name,
           table: cfg.table,
+          projectId: skill.project,
           llm: null,
         });
       } else {
-        instance = new VectorMemory({ skillName: skill.name, table: cfg.table });
+        instance = new VectorMemory({
+          skillName: skill.name,
+          table: cfg.table,
+          projectId: skill.project,
+        });
       }
     } else {
-      instance = new FileMemory({ skillName: skill.name, root: this._memoryRoot() });
+      instance = new FileMemory({
+        skillName: skill.name,
+        root: this._memoryRoot(),
+        projectId: skill.project,
+      });
     }
 
     this._store().set(skill.name, { type, instance, config: cfg });

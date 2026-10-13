@@ -27,7 +27,7 @@ describe('test/lib/memory/vectorMemory.test.js', () => {
   });
 
   it('insert / search 关键词匹配', async () => {
-    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem' });
+    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem', projectId: 'platform' });
     await mem.insert('Egg.js 插件生命周期 beforeStart');
     await mem.insert('天气查询 LangChain');
 
@@ -38,14 +38,24 @@ describe('test/lib/memory/vectorMemory.test.js', () => {
   });
 
   it('readSummary 返回最近条目', async () => {
-    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem2' });
+    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem2', projectId: 'platform' });
     await mem.insert('summary line one');
     const summary = await mem.readSummary();
     assert.ok(summary.includes('summary line one'));
   });
 
+  it('不同 project_id 互不可见', async () => {
+    const platform = new VectorMemory({ skillName: 'shared-skill', table: 'shared_mem', projectId: 'platform' });
+    const testgen = new VectorMemory({ skillName: 'shared-skill', table: 'shared_mem', projectId: 'testgen' });
+    await platform.insert('PLATFORM_VEC_MARK alpha');
+    await testgen.insert('TESTGEN_VEC_MARK beta');
+    const hits = await platform.search('MARK', 10);
+    assert.ok(hits.some(hit => hit.content.includes('PLATFORM_VEC_MARK')));
+    assert.equal(hits.some(hit => hit.content.includes('TESTGEN_VEC_MARK')), false);
+  });
+
   it('destroy 清空数据', async () => {
-    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem3' });
+    const mem = new VectorMemory({ skillName: 'ut-skill', table: 'ut_mem3', projectId: 'platform' });
     await mem.insert('to delete');
     await mem.destroy();
     const hits = await mem.search('delete', 5);

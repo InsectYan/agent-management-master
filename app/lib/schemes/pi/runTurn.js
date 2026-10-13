@@ -18,6 +18,7 @@ async function runPiTurnLight(input) {
   initSkillWorkspace({ workspacesRoot, skill });
   const { cwd, session_dir, outbox_path } = materializeTurn({
     workspacesRoot,
+    projectId: skill.project,
     skillName: skill.name,
     sessionId,
     message,
@@ -83,6 +84,7 @@ async function runPiTurn(input) {
       const mod = await import('./piRunTurn.mjs');
       return mod.runPiTurnFull(input);
     } catch (err) {
+      console.error('[pi] full engine failed:', err && err.stack ? err.stack : err);
       if (input.hooks?.onStatus) {
         input.hooks.onStatus({ phase: 'pi_fallback', label: `Pi 引擎回退: ${err.message}` });
       }

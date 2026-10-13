@@ -16,6 +16,7 @@ function resolveAnalyzeAction(action) {
 
 module.exports = {
   name: 'perf-bottleneck-skill',
+  project: 'platform',
   version: '1.0.0',
   description: 'React 方案 — 性能瓶颈预测与优化建议',
   scheme: 'react',

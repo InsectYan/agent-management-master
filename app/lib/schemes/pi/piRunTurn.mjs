@@ -1,14 +1,15 @@
 /**
  * @file piRunTurn.mjs
- * @description 完整 Pi 单轮：@earendil-works/pi-coding-agent（read/grep/bash/write + outbox）。
+ * @description 完整 Pi 单轮：createAgentSession + DefaultResourceLoader。
+ *              人设与 SKILL.md 从插件目录加载，工作区只放会话。
  */
 
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, cpSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
-  AuthStorage,
   createAgentSession,
-  ModelRegistry,
+  DefaultResourceLoader,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
 } from '@earendil-works/pi-coding-agent';
@@ -17,106 +18,96 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { parseOutboxJson } = require('./parseOutboxJson.js');
 const { resolveChatModel } = require('./model.js');
+const {
+  initSkillWorkspace,
+  materializeTurn,
+  sessionJsonlPath,
+} = require('./workspace.js');
+const {
+  truncateSessionJsonl,
+  noteCompactFailure,
+  resetCompactFailures,
+} = require('./memory/short.js');
 
-function sanitize(value) {
-  return String(value || 'default').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
-}
-
-function skillWorkspacePath(workspacesRoot, skillName) {
-  return join(workspacesRoot, `skill_${sanitize(skillName)}`);
-}
-
-function sessionDir(workspacesRoot, skillName, sessionId) {
-  return join(skillWorkspacePath(workspacesRoot, skillName), 'sessions', sanitize(sessionId));
-}
-
-function sessionJsonl(workspacesRoot, skillName, sessionId) {
-  return join(skillWorkspacePath(workspacesRoot, skillName), `${sanitize(sessionId)}.jsonl`);
-}
-
-function initSkillWorkspace({ workspacesRoot, skill }) {
-  const cwd = skillWorkspacePath(workspacesRoot, skill.name);
-  mkdirSync(cwd, { recursive: true });
-
-  const agentsPath = join(cwd, 'AGENTS.md');
-  if (!existsSync(agentsPath)) {
-    const purpose = skill.skillDoc?.purpose || skill.description || skill.name;
-    writeFileSync(agentsPath, `# ${skill.name}\n\n${purpose}\n\n必须 write sessions/<id>/outbox.json（JSON，含 reply）。\n可用 bash/read/grep/write 工具。\n`, 'utf-8');
-  }
-
-  const skillMdSrc = join(skill.dirPath, 'SKILL.md');
-  const skillMdDst = join(cwd, 'SKILL.md');
-  if (existsSync(skillMdSrc) && !existsSync(skillMdDst)) {
-    cpSync(skillMdSrc, skillMdDst);
-  }
-
-  const toolsSrc = join(skill.dirPath, 'tools');
-  const toolsDst = join(cwd, 'tools');
-  if (existsSync(toolsSrc) && !existsSync(toolsDst)) {
-    cpSync(toolsSrc, toolsDst, { recursive: true });
-  }
-
-  const memoryDst = join(cwd, 'MEMORY.md');
-  if (!existsSync(memoryDst)) {
-    writeFileSync(memoryDst, `# ${skill.name} 记忆\n\n### 偏好\n\n### 事实\n\n`, 'utf-8');
-  }
-
-  return cwd;
-}
-
-function materializeTurn({ workspacesRoot, skillName, sessionId, message, context }) {
-  const cwd = skillWorkspacePath(workspacesRoot, skillName);
-  const dir = sessionDir(workspacesRoot, skillName, sessionId);
-  mkdirSync(dir, { recursive: true });
-  const outboxPath = join(dir, 'outbox.json');
-  if (existsSync(outboxPath)) unlinkSync(outboxPath);
-
-  writeFileSync(join(dir, 'inbox.md'), message, 'utf-8');
-  writeFileSync(join(dir, 'context.json'), JSON.stringify({
-    skill: skillName,
-    session_id: sessionId,
-    ...(context || {}),
-  }, null, 2), 'utf-8');
-  writeFileSync(join(dir, 'PROMPT.md'), '# 本轮\n\n必须 write outbox.json（含 reply、message_type、intent、agent_name）。\n', 'utf-8');
-
-  return { cwd, session_dir: dir, outbox_path: outboxPath };
-}
-
-function buildAuth(llm) {
-  const data = {};
-  const key = (llm?.apiKey || 'ollama').trim();
+async function buildRuntime(llm, agentDir) {
+  mkdirSync(agentDir, { recursive: true });
+  const runtime = await ModelRuntime.create({
+    authPath: join(agentDir, 'auth.json'),
+    modelsPath: null,
+    refreshOnCreate: false,
+  });
+  const key = (llm?.apiKey || '').trim();
   if (key) {
-    data.openai = { type: 'api_key', key };
-    data.zhipu = { type: 'api_key', key };
+    await runtime.setRuntimeApiKey('openai', key);
+    await runtime.setRuntimeApiKey('zhipu', key);
   }
-  const authStorage = AuthStorage.inMemory(data);
-  return { authStorage, modelRegistry: ModelRegistry.create(authStorage) };
+  return runtime;
+}
+
+function readOptional(filePath) {
+  if (!existsSync(filePath)) return '';
+  return readFileSync(filePath, 'utf-8');
+}
+
+function skillDirectories(skill) {
+  const dirs = [ skill.dirPath ];
+  const scenes = Array.isArray(skill.config?.pi?.scenes) ? skill.config.pi.scenes : [];
+  for (const scene of scenes) {
+    dirs.push(join(skill.dirPath, 'scenes', scene));
+  }
+  return dirs.filter(dir => existsSync(dir));
+}
+
+async function createResourceLoader(skill, cwd) {
+  const agentDir = join(cwd, '.pi');
+  mkdirSync(agentDir, { recursive: true });
+  const agents = readOptional(join(skill.dirPath, 'prompts', 'AGENTS.md'));
+  const soul = readOptional(join(skill.dirPath, 'prompts', 'SOUL.md'));
+  const append = readOptional(join(skill.dirPath, 'prompts', 'APPEND_SYSTEM.md'));
+  const systemPrompt = [ soul, agents ].filter(Boolean).join('\n\n');
+  const loader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    settingsManager: SettingsManager.create(cwd, agentDir),
+    additionalSkillPaths: skillDirectories(skill),
+    noExtensions: true,
+    noThemes: true,
+    noPromptTemplates: true,
+    noContextFiles: true,
+    systemPrompt: systemPrompt || undefined,
+    appendSystemPrompt: append ? [ append ] : [],
+  });
+  if (typeof loader.reload === 'function') {
+    await loader.reload();
+  }
+  return loader;
 }
 
 function extractCurrentLine(enriched) {
-  const m = /(?:^|\n)## 当前消息\r?\n/.exec(enriched);
-  if (!m) return enriched.trim().slice(0, 2000);
-  const tail = enriched.slice(m.index + m[0].length);
+  const matched = /(?:^|\n)## 当前消息\r?\n/.exec(enriched);
+  if (!matched) return enriched.trim().slice(0, 2000);
+  const tail = enriched.slice(matched.index + matched[0].length);
   const nextSec = tail.search(/\r?\n## /);
   const block = nextSec >= 0 ? tail.slice(0, nextSec) : tail;
   for (const line of block.split(/\r?\n/)) {
-    const t = line.trim();
-    if (t && !/^(session|##|-\s)/.test(t)) return t.slice(0, 2000);
+    const text = line.trim();
+    if (text && !/^(session|##|-\s)/.test(text)) return text.slice(0, 2000);
   }
   return block.trim().slice(0, 2000);
 }
 
 function toolStatusLabel(toolName) {
   if (toolName === 'read') return '正在读取资料…';
-  if (toolName === 'grep') return '正在检索工作区…';
+  if (toolName === 'grep' || toolName === 'find') return '正在检索工作区…';
   if (toolName === 'bash') return '正在执行命令…';
   if (toolName === 'write') return '正在撰写回复…';
+  if (toolName === 'search_knowledge' || toolName === 'read_knowledge') return '正在查阅知识库…';
   return null;
 }
 
 async function waitSessionIdle(session) {
   while (session.isStreaming) {
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 }
 
@@ -125,18 +116,30 @@ async function promptAndWait(session, text) {
   await waitSessionIdle(session);
 }
 
+async function customToolsFor(skill, knowledgeRoot) {
+  const names = Array.isArray(skill.config?.pi?.tools) ? skill.config.pi.tools : [];
+  if (!names.includes('search_knowledge') && !names.includes('read_knowledge')) return [];
+  const { createKnowledgeTools } = await import('./tools/knowledge.mjs');
+  return createKnowledgeTools({
+    projectId: skill.project,
+    knowledgeRoot,
+    names,
+  });
+}
+
 /**
  * 完整 Pi runTurn
  * @param {Object} input
  */
 export async function runPiTurnFull(input) {
   const {
-    skill, message, sessionId, llm, workspacesRoot, hooks, context, memoryContext,
+    skill, message, sessionId, llm, workspacesRoot, hooks, context, memoryContext, knowledgeRoot,
   } = input;
 
   initSkillWorkspace({ workspacesRoot, skill });
   const { cwd, session_dir, outbox_path } = materializeTurn({
     workspacesRoot,
+    projectId: skill.project,
     skillName: skill.name,
     sessionId,
     message,
@@ -155,7 +158,7 @@ export async function runPiTurnFull(input) {
     return { reply: stub.reply, outbox: stub, workspace: cwd, session_dir, pi_engine: 'pi-coding-agent' };
   }
 
-  const jsonlPath = sessionJsonl(workspacesRoot, skill.name, sessionId);
+  const jsonlPath = sessionJsonlPath(workspacesRoot, skill.project, skill.name, sessionId);
   const rel = session_dir.slice(cwd.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
   const outboxRel = `${rel}/outbox.json`;
   const currentLine = extractCurrentLine(message);
@@ -164,19 +167,24 @@ export async function runPiTurnFull(input) {
   if (existsSync(jsonlPath)) {
     sessionManager = SessionManager.open(jsonlPath, session_dir, cwd);
   } else {
-    sessionManager = SessionManager.create(cwd, session_dir, { id: sanitize(sessionId) });
+    sessionManager = SessionManager.create(cwd, session_dir, { id: String(sessionId || 'default').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) });
     sessionManager.setSessionFile(jsonlPath);
   }
 
-  const { authStorage, modelRegistry } = buildAuth(llm);
+  const agentDir = join(cwd, '.pi');
+  const modelRuntime = await buildRuntime(llm, agentDir);
+  const resourceLoader = await createResourceLoader(skill, cwd);
+  const customTools = await customToolsFor(skill, knowledgeRoot);
   const { session } = await createAgentSession({
     cwd,
+    agentDir,
     sessionManager,
-    settingsManager: SettingsManager.create(cwd),
-    authStorage,
-    modelRegistry,
+    settingsManager: SettingsManager.create(cwd, agentDir),
+    modelRuntime,
+    resourceLoader,
     model: resolveChatModel(llm),
     tools: [ 'read', 'grep', 'bash', 'write' ],
+    customTools: customTools.length ? customTools : undefined,
     thinkingLevel: 'off',
     sessionStartEvent: {
       type: 'session_start',
@@ -185,8 +193,8 @@ export async function runPiTurnFull(input) {
   });
 
   const memoryHint = memoryContext
-    ? `\n4. read MEMORY.md（长期记忆）\n${memoryContext.includes('MEMORY') ? '' : `记忆摘要：\n${memoryContext.slice(0, 1500)}`}`
-    : '\n4. read MEMORY.md（若有）';
+    ? `\n长期记忆（系统已注入，不要在工作区另写 MEMORY.md）：\n${memoryContext.slice(0, 1500)}`
+    : '';
 
   const mainPrompt = [
     `【${skill.name}】session=${sessionId}`,
@@ -195,21 +203,30 @@ export async function runPiTurnFull(input) {
     '',
     '本轮结束前必须 write ' + outboxRel + '（合法 JSON）。',
     '必填：reply、message_type、intent、agent_name。',
-    '若用户要求记住偏好，在 outbox 中加 memory_ops 或在 MEMORY.md 写入。',
+    '若用户要求记住偏好，在 outbox 中加 memory_ops。',
     '',
     '步骤：',
-    '1. read AGENTS.md 与 SKILL.md',
+    '1. 人设与 SKILL.md 已加载',
     '2. read ' + rel + '/inbox.md',
     memoryHint,
-    '5. write ' + outboxRel + ' — 完成后再结束',
+    '3. write ' + outboxRel + ' — 完成后再结束',
   ].filter(Boolean).join('\n');
 
   hooks?.onStatus?.({ phase: 'pi_turn', label: 'Pi 执行中…' });
 
+  let keptEntryId = '';
+  let compactFailed = false;
   const unsub = session.subscribe(event => {
     if (event.type === 'tool_execution_start') {
       const label = toolStatusLabel(event.toolName);
       if (label) hooks?.onStatus?.({ phase: 'tool', label, tool: event.toolName });
+    }
+    if (event.type === 'compaction_end') {
+      if (event.result?.firstKeptEntryId && !event.aborted && !event.errorMessage) {
+        keptEntryId = event.result.firstKeptEntryId;
+      } else {
+        compactFailed = true;
+      }
     }
   });
 
@@ -222,6 +239,13 @@ export async function runPiTurnFull(input) {
   } finally {
     unsub();
     session.dispose();
+  }
+
+  if (keptEntryId) {
+    truncateSessionJsonl(jsonlPath, keptEntryId);
+    resetCompactFailures(jsonlPath);
+  } else if (compactFailed) {
+    noteCompactFailure(jsonlPath);
   }
 
   if (!existsSync(outbox_path)) {
@@ -237,9 +261,9 @@ export async function runPiTurnFull(input) {
   let outbox;
   try {
     outbox = parseOutboxJson(readFileSync(outbox_path, 'utf-8'));
-  } catch (e) {
+  } catch (err) {
     outbox = {
-      reply: `outbox.json 格式无效：${e.message}`,
+      reply: `outbox.json 格式无效：${err.message}`,
       message_type: 'text',
       intent: 'error',
       agent_name: 'note_assistant',

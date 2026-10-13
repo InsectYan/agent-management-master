@@ -8,6 +8,7 @@
 
 module.exports = {
   name: 'weather-skill',
+  project: 'platform',
   version: '0.2.0',
   description: 'LangChain 方案示例 — 天气查询（含 SKILL.md 与落库）',
   scheme: 'langchain',

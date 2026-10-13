@@ -8,6 +8,7 @@
 
 module.exports = {
   name: 'note-skill',
+  project: 'platform',
   version: '0.2.0',
   description: 'Pi 方案示例 — 记事/对话（含 SKILL.md 与落库）',
   scheme: 'pi',

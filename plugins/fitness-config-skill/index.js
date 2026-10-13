@@ -12,6 +12,7 @@ function needsRuleFallback(result) {
 
 module.exports = {
   name: 'fitness-config-skill',
+  project: 'fitness',
   version: '1.0.0',
   description: 'Fitness 测试配置模板自动生成（DET/BND/REP/CHAIN/PAIR/NEG/OBS/LOAD）',
   scheme: 'react',

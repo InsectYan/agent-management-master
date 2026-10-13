@@ -151,6 +151,7 @@ function parseJudgeOutput(output, text, rubric, thresholdJson = {}) {
 
 module.exports = {
   name: 'fitness-judge-skill',
+  project: 'fitness',
   version: '1.2.0',
   description: 'Fitness 语义判定 — judge / explain / pre_review / summary',
   scheme: 'loop',

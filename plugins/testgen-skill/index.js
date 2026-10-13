@@ -73,6 +73,7 @@ function takeInteractionLog(jobId) {
 
 module.exports = {
   name: 'testgen-skill',
+  project: 'testgen',
   version: '1.0.0',
   description: 'Loop 方案 — 根据文档多步生成测试用例',
   scheme: 'loop',

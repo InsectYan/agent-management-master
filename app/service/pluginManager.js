@@ -10,6 +10,7 @@ const path = require('path');
 
 const Service = require('egg').Service;
 const { loadSkillDoc } = require('../lib/skill/skillDoc');
+const { loadProjectRegistry, resolveSkillAdmission } = require('../lib/projects/registry');
 
 /**
  * @typedef {Object} SkillMeta
@@ -21,6 +22,7 @@ const { loadSkillDoc } = require('../lib/skill/skillDoc');
  * @property {Object} [memoryConfig]
  * @property {Object} [config]
  * @property {Object} [callbacks]
+ * @property {string} project
  * @property {string} dirPath - 插件目录绝对路径
  * @property {'enabled'|'disabled'} status
  * @property {import('../lib/skill/skillDoc').SkillDoc|null} skillDoc - SKILL.md 解析结果
@@ -74,6 +76,11 @@ class PluginManagerService extends Service {
       return [];
     }
 
+    const registryPath = path.join(this.app.baseDir, 'config', 'projects.json');
+    const registry = loadProjectRegistry(registryPath);
+    this.app.projectRegistry = registry;
+
+    const seen = new Set();
     const entries = fs.readdirSync(pluginDir, { withFileTypes: true });
     for (const ent of entries) {
       if (!ent.isDirectory()) continue;
@@ -88,8 +95,15 @@ class PluginManagerService extends Service {
 
       try {
         const skill = this._loadSkillModule(skillDir, indexPath);
+        seen.add(skill.name);
+        const admission = resolveSkillAdmission(skill, registry);
+        if (!admission.ok) {
+          this.app.logger.error('[PluginManager] 拒绝加载 %s: %s', skill.name, admission.reason);
+          continue;
+        }
+        skill.project = admission.project;
         store.set(skill.name, skill);
-        this.app.logger.info('[PluginManager] 已加载 Skill: %s (scheme=%s)', skill.name, skill.scheme);
+        this.app.logger.info('[PluginManager] 已加载 Skill: %s (project=%s scheme=%s)', skill.name, skill.project, skill.scheme);
 
         if (typeof skill.callbacks?.onEnable === 'function') {
           await skill.callbacks.onEnable(this.app);
@@ -99,8 +113,38 @@ class PluginManagerService extends Service {
       }
     }
 
+    for (const skillName of registry.skillToProject.keys()) {
+      if (!store.has(skillName) && !seen.has(skillName)) {
+        this.app.logger.warn('[PluginManager] 登记的技能未加载: %s (%s)', skillName, registry.skillToProject.get(skillName));
+      }
+    }
+
     this.app._skillsLoaded = true;
     return this.list();
+  }
+
+  /**
+   * 已关联项目。skills 只含本次加载成功的技能。
+   * @returns {{ count: number, projects: Object[] }}
+   */
+  listProjects() {
+    const registry = this.app.projectRegistry;
+    const loaded = this.list();
+    if (!registry) {
+      return { count: 0, projects: [] };
+    }
+    const projects = registry.projects.map(project => ({
+      id: project.id,
+      title: project.title || project.id,
+      skills: loaded
+        .filter(skill => skill.project === project.id)
+        .map(skill => ({
+          name: skill.name,
+          scheme: skill.scheme,
+          memory: skill.memoryConfig?.enabled ? (skill.memoryConfig.type || 'file') : 'off',
+        })),
+    }));
+    return { count: projects.length, projects };
   }
 
   /**
@@ -131,6 +175,7 @@ class PluginManagerService extends Service {
 
     return {
       name,
+      project: String(raw.project || '').trim(),
       scheme,
       version: raw.version || '0.0.0',
       description: raw.description || '',

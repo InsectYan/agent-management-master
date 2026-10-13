@@ -15,6 +15,7 @@ const Controller = require('egg').Controller;
 function serializeSkill(skill) {
   return {
     name: skill.name,
+    project: skill.project,
     scheme: skill.scheme,
     version: skill.version,
     description: skill.description,

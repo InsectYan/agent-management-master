@@ -75,6 +75,8 @@ docs/schemes/      # 各方案说明文档
 
 ## 新增 Skill
 
+新 Skill、新 Agent 方案都写在本仓库，不另建插件仓库。
+
 1. 在 `plugins/{name}-skill/` 创建：
    - `index.js` — 声明 `scheme`、`routes`、`dbTables`、`callbacks`
    - `SKILL.md` — 用途、执行动作、入参/出参、落库规则（平台启动时会解析）

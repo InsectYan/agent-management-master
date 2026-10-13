@@ -8,14 +8,23 @@
 const fs = require('fs');
 const path = require('path');
 
+function sanitize(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 /**
  * @param {string} root - memoryFiles 根目录
  * @param {string} skillName
+ * @param {string} projectId
  * @returns {string}
  */
-function memoryFilePath(root, skillName) {
-  const safe = String(skillName).replace(/[^a-zA-Z0-9_-]/g, '_');
-  return path.join(root, safe, 'MEMORY.md');
+function memoryFilePath(root, skillName, projectId) {
+  const project = sanitize(projectId);
+  const skill = sanitize(skillName);
+  if (!project) {
+    throw new Error('文件记忆需要 projectId');
+  }
+  return path.join(root, project, skill, 'MEMORY.md');
 }
 
 /**
@@ -36,10 +45,12 @@ class FileMemory {
    * @param {Object} options
    * @param {string} options.skillName
    * @param {string} options.root - memoryFiles 根目录
+   * @param {string} options.projectId
    */
   constructor(options) {
     this.skillName = options.skillName;
-    this.filePath = memoryFilePath(options.root, options.skillName);
+    this.projectId = options.projectId;
+    this.filePath = memoryFilePath(options.root, options.skillName, options.projectId);
     ensureFile(this.filePath, this.skillName);
   }
 

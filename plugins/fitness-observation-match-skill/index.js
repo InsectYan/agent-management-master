@@ -14,6 +14,7 @@ const {
 
 module.exports = {
   name: 'fitness-observation-match-skill',
+  project: 'fitness',
   version: '1.1.0',
   description: 'Fitness 观测文案比对 — 多样本共用一条 expected_observation',
   scheme: 'loop',

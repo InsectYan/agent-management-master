@@ -13,6 +13,7 @@ function needsRuleFallback(result) {
 
 module.exports = {
   name: 'fitness-explore-skill',
+  project: 'fitness',
   version: '1.0.0',
   description: 'Fitness TS-05 探索式步骤规划',
   scheme: 'react',

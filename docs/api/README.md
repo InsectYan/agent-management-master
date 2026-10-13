@@ -25,7 +25,8 @@ http://localhost:4001
 | GET | `/health` | 存活探针 |
 | GET | `/ready` | 就绪探针 |
 | GET | `/api/schemes` | Agent 方案列表 |
-| GET | `/api/plugins` | Skill 列表 |
+| GET | `/api/plugins` | Skill 列表（每条多一个 `project` 字段） |
+| GET | `/api/projects` | 已关联项目及各自已加载的 skill |
 | GET | `/api/plugins/:name` | Skill 详情 |
 | GET | `/api/plugins/:name/skill-doc` | SKILL.md 解析结果 |
 | GET | `/api/llm/profiles` | 文本 LLM catalog |

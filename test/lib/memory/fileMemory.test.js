@@ -18,12 +18,12 @@ describe('test/lib/memory/fileMemory.test.js', () => {
   });
 
   it('memoryFilePath 安全化 skill 名', () => {
-    const p = memoryFilePath(root, 'note-skill');
-    assert.ok(p.endsWith(path.join('note-skill', 'MEMORY.md')));
+    const p = memoryFilePath(root, 'note-skill', 'platform');
+    assert.ok(p.endsWith(path.join('platform', 'note-skill', 'MEMORY.md')));
   });
 
   it('read / append / search', () => {
-    const mem = new FileMemory({ skillName: 'ut-file', root });
+    const mem = new FileMemory({ skillName: 'ut-file', projectId: 'platform', root });
     const initial = mem.read();
     assert.ok(initial.includes('ut-file'));
 

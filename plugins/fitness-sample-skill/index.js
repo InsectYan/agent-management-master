@@ -44,6 +44,7 @@ function needsRuleFallback(result) {
 
 module.exports = {
   name: 'fitness-sample-skill',
+  project: 'fitness',
   version: '1.0.0',
   description: 'Fitness 样本/矩阵/对抗集生成（规则 + LLM）',
   scheme: 'react',

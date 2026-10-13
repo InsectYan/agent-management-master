@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS memory_embeddings (
   id BIGSERIAL PRIMARY KEY,
   skill_name TEXT NOT NULL,
   memory_table TEXT NOT NULL,
+  project_id TEXT,
   content TEXT NOT NULL,
   embedding vector(768),
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -28,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_memory_embeddings_skill
 CREATE TABLE IF NOT EXISTS memory_dream_jobs (
   job_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   skill_name TEXT NOT NULL,
+  project_id TEXT,
   session_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending',
   not_before TIMESTAMPTZ NOT NULL DEFAULT NOW(),

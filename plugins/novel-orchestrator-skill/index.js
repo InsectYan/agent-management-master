@@ -9,6 +9,7 @@ const { parsePlanStep } = require('./lib/parseStep');
 
 module.exports = {
   name: 'novel-orchestrator-skill',
+  project: 'novel',
   version: '0.1.0',
   description: '小说开书任务拆分：产出 tasks 计划，不写设定正文',
   scheme: 'loop',

@@ -139,6 +139,7 @@ class SkillInvokeService extends Service {
         const { upsertDreamJob } = require('../lib/memory/dreamJobStore');
         const dream = await upsertDreamJob({
           skillName: skill.name,
+          projectId: skill.project,
           sessionId: String(params.session_id),
           idleMinutes: this.config.appSettings.memorySystem?.dream?.idleMinutes,
           requestJson: {
@@ -152,7 +153,13 @@ class SkillInvokeService extends Service {
       }
     }
 
-    if (typeof skill.callbacks.persistResult === 'function') {
+    if (result.meta?.verification_blocked) {
+      result.meta = {
+        ...(result.meta || {}),
+        persisted: false,
+        reason: 'verification_blocked',
+      };
+    } else if (typeof skill.callbacks.persistResult === 'function') {
       const persistMeta = await skill.callbacks.persistResult(ctx, { ...result, params, llm });
       if (persistMeta && typeof persistMeta === 'object') {
         result.meta = { ...(result.meta || {}), ...persistMeta };

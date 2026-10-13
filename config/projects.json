@@ -1,0 +1,45 @@
+{
+  "projects": [
+    {
+      "id": "platform",
+      "title": "平台示例",
+      "skills": [
+        "note-skill",
+        "weather-skill",
+        "research-skill",
+        "qa-skill",
+        "perf-bottleneck-skill"
+      ]
+    },
+    {
+      "id": "novel",
+      "title": "小说",
+      "skills": [
+        "novel-brainstorm-skill",
+        "novel-writer-skill",
+        "novel-orchestrator-skill"
+      ]
+    },
+    {
+      "id": "fitness",
+      "title": "健身",
+      "skills": [
+        "fitness-judge-skill",
+        "fitness-observation-match-skill",
+        "fitness-sample-skill",
+        "fitness-config-skill",
+        "fitness-explore-skill"
+      ]
+    },
+    {
+      "id": "ops",
+      "title": "运维",
+      "skills": [ "ops-project-skill", "ops-deploy-skill" ]
+    },
+    {
+      "id": "testgen",
+      "title": "测试生成",
+      "skills": [ "testgen-skill", "api-template-skill" ]
+    }
+  ]
+}

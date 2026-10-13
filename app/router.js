@@ -16,6 +16,7 @@ module.exports = app => {
   router.get('/ready', controller.health.ready);
 
   router.get('/api/schemes', controller.scheme.list);
+  router.get('/api/projects', controller.project.list);
   router.get('/api/plugins', controller.plugin.list);
   router.get('/api/plugins/:name/skill-doc', controller.plugin.skillDoc);
   router.get('/api/plugins/:name', controller.plugin.show);

@@ -7,6 +7,7 @@
 
 module.exports = {
   name: 'qa-skill',
+  project: 'platform',
   version: '0.1.0',
   description: 'ReAct 方案示例 — 工具推理问答',
   scheme: 'react',

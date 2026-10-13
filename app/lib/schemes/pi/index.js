@@ -8,6 +8,7 @@
 
 const AgentExecutor = require('../base/executor');
 const { runPiTurn } = require('./runTurn');
+const { runRegisteredModules } = require('./skillModules');
 
 /**
  * Pi 方案执行器
@@ -25,6 +26,7 @@ class PiExecutor extends AgentExecutor {
     const raw = params.raw || {};
     const action = input.action || raw.action || 'chat';
     const workspacesRoot = app.config.appSettings.workspacesRoot;
+    const knowledgeRoot = app.config.appSettings.knowledgeRoot;
 
     /** history / list 只读动作 */
     if (action === 'list' && Array.isArray(input.entries)) {
@@ -78,9 +80,16 @@ class PiExecutor extends AgentExecutor {
       stream,
       context: { action, session_id: sessionId },
       memoryContext: input._memoryContext || '',
+      knowledgeRoot,
     });
 
     const outbox = turn.outbox || {};
+    const checks = await runRegisteredModules(skill, 'verification', {
+      outbox,
+      action,
+      session_id: sessionId,
+    });
+    const verificationBlocked = checks.some(item => item.ok === false);
 
     return {
       text: turn.reply,
@@ -101,6 +110,8 @@ class PiExecutor extends AgentExecutor {
         skill_doc: skill.skillDoc?.purpose ? '已按 SKILL.md 执行' : null,
         model: llm.model,
         workspace: turn.workspace,
+        pi_engine: turn.pi_engine,
+        ...(checks.length ? { verification: checks, verification_blocked: verificationBlocked } : {}),
       },
     };
   }

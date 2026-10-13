@@ -62,6 +62,10 @@ async function processDreamJob(ctx, job) {
 
   try {
     const skill = ctx.service.pluginManager.get(skillName);
+    if (job.project_id && skill?.project && job.project_id !== skill.project) {
+      await failDreamJob(jobId, 'project mismatch');
+      return;
+    }
     if (!skill?.memoryConfig?.enabled) {
       await completeDreamJob(jobId, { skipped: true, reason: 'memory disabled' });
       return;

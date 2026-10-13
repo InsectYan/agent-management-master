@@ -4,6 +4,7 @@ const { parseBrainstormStep } = require('./lib/parseStep');
 
 module.exports = {
   name: 'novel-brainstorm-skill',
+  project: 'novel',
   version: '0.1.0',
   description: '小说开书头脑风暴：书名/立意火花，不写 patch',
   scheme: 'loop',

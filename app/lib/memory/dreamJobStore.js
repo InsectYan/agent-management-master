@@ -7,27 +7,38 @@
 
 const { isPostgres, getPgPool } = require('../db/pool');
 
+let projectColumnReady = false;
+
+async function ensureProjectColumn() {
+  if (projectColumnReady || !isPostgres()) return;
+  await getPgPool().query(`ALTER TABLE memory_dream_jobs ADD COLUMN IF NOT EXISTS project_id TEXT`);
+  projectColumnReady = true;
+}
+
 /**
  * @param {Object} input
  * @param {string} input.skillName
+ * @param {string} [input.projectId]
  * @param {string} input.sessionId
  * @param {number} [input.idleMinutes]
  * @param {Record<string, unknown>} [input.requestJson]
  */
 async function upsertDreamJob(input) {
   if (!isPostgres()) return { job_id: null, created: false, skipped: true };
+  await ensureProjectColumn();
 
   const idleMin = input.idleMinutes ?? Number(process.env.MEMORY_DREAM_IDLE_MIN || 5);
+  const projectId = input.projectId || null;
   const notBefore = new Date(Date.now() + idleMin * 60_000);
   const reqJson = JSON.stringify(input.requestJson || {});
   const pool = getPgPool();
 
   const updated = await pool.query(
     `UPDATE memory_dream_jobs
-     SET not_before = $3, request_json = $4::jsonb, created_at = NOW()
+     SET not_before = $3, request_json = $4::jsonb, project_id = $5, created_at = NOW()
      WHERE skill_name = $1 AND session_id = $2 AND status = 'pending'
      RETURNING job_id`,
-    [ input.skillName, input.sessionId, notBefore, reqJson ]
+    [ input.skillName, input.sessionId, notBefore, reqJson, projectId ]
   );
   if (updated.rows[0]) {
     return { job_id: updated.rows[0].job_id, created: false };
@@ -43,10 +54,10 @@ async function upsertDreamJob(input) {
   }
 
   const inserted = await pool.query(
-    `INSERT INTO memory_dream_jobs (skill_name, session_id, status, not_before, trigger_kind, request_json)
-     VALUES ($1, $2, 'pending', $3, 'session_idle', $4::jsonb)
+    `INSERT INTO memory_dream_jobs (skill_name, project_id, session_id, status, not_before, trigger_kind, request_json)
+     VALUES ($1, $2, $3, 'pending', $4, 'session_idle', $5::jsonb)
      RETURNING job_id`,
-    [ input.skillName, input.sessionId, notBefore, reqJson ]
+    [ input.skillName, projectId, input.sessionId, notBefore, reqJson ]
   );
   return { job_id: inserted.rows[0].job_id, created: true };
 }

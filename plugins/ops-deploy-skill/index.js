@@ -7,6 +7,7 @@
 
 module.exports = {
   name: 'ops-deploy-skill',
+  project: 'ops',
   version: '0.1.0',
   description: '运维部署执行合同（拉 tag / 构建）；BFF 内 runner 为第一期实现',
   scheme: 'action',

@@ -91,6 +91,9 @@ function abortErrorMessage(signal, kind, timeoutMs, llm, base) {
  * @returns {Promise<{ text: string, usage?: Record<string, number>, raw: unknown }>}
  */
 async function llmChat(options) {
+  if (options.llm?.localOllama || String(options.llm?.provider || '').toLowerCase() === 'ollama') {
+    return llmChatOllama(options);
+  }
   const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs, signal } = options;
   const base = (llm.baseUrl || '').replace(/\/$/, '');
   const url = `${base}/chat/completions`;
@@ -139,6 +142,58 @@ async function llmChat(options) {
 
   const text = String(raw?.choices?.[0]?.message?.content || '').trim();
   return { text, usage: raw?.usage, raw };
+}
+
+/**
+ * 本机 Ollama 的 OpenAI 兼容接口会忽略 think:false，把正文留在 reasoning，content 为空。
+ * 原生 /api/chat 会真正关掉思考，直接返回 JSON。
+ * @param {Object} options
+ */
+async function llmChatOllama(options) {
+  const { llm, messages, temperature = 0.7, maxTokens = 2048, hooks, timeoutMs, signal } = options;
+  const origin = String(llm.baseUrl || '').replace(/\/$/, '').replace(/\/v1$/, '');
+  const url = `${origin}/api/chat`;
+  const effectiveTimeout = resolveLlmTimeout(llm, timeoutMs);
+
+  emitStatus(hooks, { phase: 'llm', label: '正在调用模型…' });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), effectiveTimeout);
+  const unbind = bindAbortSignal(signal, controller);
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: llm.model,
+        messages,
+        think: false,
+        stream: false,
+        options: { temperature, num_predict: maxTokens },
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, origin));
+    }
+    const cause = err?.cause?.message || err?.cause?.code || '';
+    const detail = cause ? `${err.message}: ${cause}` : err.message;
+    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${origin}）`);
+  } finally {
+    clearTimeout(timer);
+    unbind();
+  }
+
+  const raw = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = raw?.error || raw?.message || res.statusText || 'LLM 请求失败';
+    throw new Error(`LLM ${res.status}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+  }
+  const text = String(raw?.message?.content || '').trim();
+  return { text, raw };
 }
 
 /**

@@ -40,6 +40,15 @@
       "id": "testgen",
       "title": "测试生成",
       "skills": [ "testgen-skill", "api-template-skill" ]
+    },
+    {
+      "id": "cartoon",
+      "title": "漫剧",
+      "skills": [
+        "cartoon-script-skill",
+        "cartoon-storyboard-skill",
+        "cartoon-prompt-skill"
+      ]
     }
   ]
 }

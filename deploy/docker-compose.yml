@@ -35,6 +35,8 @@ services:
       - ../workspaces:/workspaces
       - ../memory_files:/memory_files
       - ../plugins:/app/plugins:ro
+      - ../config/projects.json:/app/config/projects.json:ro
+      - ../app/lib/llm/chat.js:/app/app/lib/llm/chat.js:ro
       - ${HOST_PROJECTS_DIR:-E:/AI Tools/projects}:/host-projects:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"

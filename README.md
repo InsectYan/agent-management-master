@@ -100,6 +100,17 @@ docs/schemes/      # 各方案说明文档
 | **fitness-explore-skill** | 探索式多步链路规划 | testgen-sub（TS-05 + agent_hook.explore） |
 | **api-template-skill** | 接口模板生成与维护 | testgen-sub 接口模板管理 |
 | **ops-project-skill** | 扫描本地路径生成运维项目配置（目录/路由/总览+分流程） | ops-sub |
+| **ops-deploy-skill** | 部署合同。真正执行在 ops-sub BFF | ops-sub |
+| **novel-brainstorm-skill** | 书名、立意、人物火花 | novel-sub |
+| **novel-orchestrator-skill** | 按缺口产出计划，不写正文 | novel-sub |
+| **novel-writer-skill** | 设定、大纲、章节与单章正文的结构化 patch。上下文可带术语、人物外貌和风格预设 | novel-sub |
+| **novel-review-skill** | 一致性补充，只返回 findings，不写库 | novel-sub |
+| **cartoon-script-skill** | 把章节整理成生产剧本。故事包和本地文案不能同时传入 | cartoon-sub |
+| **cartoon-storyboard-skill** | 拆生产分镜 | cartoon-sub |
+| **cartoon-prompt-skill** | 写画面提示词，不改节点图 | cartoon-sub |
+| **cartoon-asset-skill** | 建议绑定已有资产 | cartoon-sub |
+| **cartoon-voice-skill** | 配音时间轴建议，不返回音频 | cartoon-sub |
+| **cartoon-review-skill** | 视频初审问题，不代替人工通过或驳回 | cartoon-sub |
 | **perf-bottleneck-skill** | 压测结果瓶颈分析 | testgen-sub（TS-09-LOAD） |
 | **note-skill** | Pi 记事对话（示例） | 通用演示 |
 | **weather-skill** | LangChain 天气（示例） | 通用演示 |

@@ -14,6 +14,9 @@
 - `body`：章节正文
 - `chapter_title`：章节标题
 - `visual_style`：画面风格，可空
+- `package_id`、`package_version`：钉扎的故事包。与 `copy_block_id` 不能同时出现
+- `copy_block_id`：本地文案编号
+- `content_type`：内容类型
 
 ## 出参说明
 

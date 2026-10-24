@@ -1,5 +1,6 @@
 'use strict';
 
+const { readProductionSource } = require('../_shared/productionSource');
 const { parseScriptStep } = require('./lib/parseStep');
 
 module.exports = {
@@ -52,6 +53,7 @@ module.exports = {
       }
       return {
         ...params,
+        ...readProductionSource(params),
         action: 'draft',
         topic: String(params.chapter_title || '未命名章节').slice(0, 80),
         body: body.slice(0, 4000),

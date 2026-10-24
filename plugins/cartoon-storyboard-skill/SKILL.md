@@ -13,6 +13,8 @@
 
 - `script_data`：剧本概要、人物和场次
 - `body`：章节正文，用于对齐情节
+- `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
+- `content_type`：内容类型
 
 ## 出参说明
 

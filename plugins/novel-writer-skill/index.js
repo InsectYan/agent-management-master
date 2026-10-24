@@ -17,7 +17,7 @@ module.exports = {
     {
       path: '/api/skills/novel-writer',
       method: 'POST',
-      description: 'fill_basic / fill_world / fill_factions / fill_characters / fill_outline / fill_chapters / fill_chapter_body / rewrite_field',
+      description: 'fill_basic / fill_world / fill_factions / fill_characters / fill_outline / fill_chapters / fill_chapter_body / fill_script / fill_intent_shots / rewrite_field',
       requiresAuth: false,
     },
   ],
@@ -66,6 +66,7 @@ module.exports = {
         'history',
         'sparks',
         'brainstorm_reply',
+        'variant',
       ],
       initialState: {
         thinking: '',

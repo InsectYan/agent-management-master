@@ -17,7 +17,8 @@
       "skills": [
         "novel-brainstorm-skill",
         "novel-writer-skill",
-        "novel-orchestrator-skill"
+        "novel-orchestrator-skill",
+        "novel-review-skill"
       ]
     },
     {
@@ -47,7 +48,10 @@
       "skills": [
         "cartoon-script-skill",
         "cartoon-storyboard-skill",
-        "cartoon-prompt-skill"
+        "cartoon-prompt-skill",
+        "cartoon-asset-skill",
+        "cartoon-voice-skill",
+        "cartoon-review-skill"
       ]
     }
   ]

@@ -13,6 +13,8 @@
 
 - `shots`：分镜数组
 - `visual_style`：画面风格，可空
+- `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
+- `content_type`：内容类型
 
 ## 出参说明
 

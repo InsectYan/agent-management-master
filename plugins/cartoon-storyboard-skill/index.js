@@ -1,5 +1,6 @@
 'use strict';
 
+const { readProductionSource } = require('../_shared/productionSource');
 const { parseStoryboardStep } = require('./lib/parseStep');
 
 module.exports = {
@@ -52,6 +53,7 @@ module.exports = {
       }
       return {
         ...params,
+        ...readProductionSource(params),
         action: 'draft',
         topic: '分镜',
         script_data: script,

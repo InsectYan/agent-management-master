@@ -172,12 +172,14 @@ const OUTLINE_KEYS = ['volumes'];
 const CHAPTER_KEYS = ['chapters'];
 const FACTION_KEYS = ['factions'];
 const CHAPTER_BODY_KEYS = ['body'];
+const SCRIPT_KEYS = ['script'];
+const INTENT_KEYS = ['intent_shots'];
 
 function liftPatch(parsed = {}) {
   const patch = parsed.patch && typeof parsed.patch === 'object' && !Array.isArray(parsed.patch)
     ? { ...parsed.patch }
     : {};
-  for (const key of [...BASIC_KEYS, ...WORLD_KEYS, ...CHAR_KEYS, ...OUTLINE_KEYS, ...CHAPTER_KEYS, ...FACTION_KEYS, ...CHAPTER_BODY_KEYS]) {
+  for (const key of [...BASIC_KEYS, ...WORLD_KEYS, ...CHAR_KEYS, ...OUTLINE_KEYS, ...CHAPTER_KEYS, ...FACTION_KEYS, ...CHAPTER_BODY_KEYS, ...SCRIPT_KEYS, ...INTENT_KEYS]) {
     if (parsed[key] !== undefined && patch[key] === undefined) {
       patch[key] = parsed[key];
     }
@@ -204,6 +206,11 @@ function fallbackReply(patch) {
   }
   if (Array.isArray(patch.chapters) && patch.chapters.length) {
     return `已整理 ${patch.chapters.length} 个章节标签，可应用到表单。`;
+  }
+  const scriptScenes = patch.script && Array.isArray(patch.script.scenes) ? patch.script.scenes.length : 0;
+  if (scriptScenes) return `已整理 ${scriptScenes} 场剧本，可填入表单后再保存。`;
+  if (Array.isArray(patch.intent_shots) && patch.intent_shots.length) {
+    return `已整理 ${patch.intent_shots.length} 条叙事分镜，确认后再写入。`;
   }
   if (Array.isArray(patch.characters) && patch.characters.length) {
     return `已整理 ${patch.characters.length} 个角色，可应用到表单。`;

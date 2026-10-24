@@ -1,5 +1,6 @@
 'use strict';
 
+const { readProductionSource } = require('../_shared/productionSource');
 const { parsePromptStep } = require('./lib/parseStep');
 
 module.exports = {
@@ -52,6 +53,7 @@ module.exports = {
       }
       return {
         ...params,
+        ...readProductionSource(params),
         action: 'draft',
         topic: '提示词',
         shots: shots.slice(0, 6),

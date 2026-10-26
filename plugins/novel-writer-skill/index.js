@@ -17,7 +17,7 @@ module.exports = {
     {
       path: '/api/skills/novel-writer',
       method: 'POST',
-      description: 'fill_basic / fill_world / fill_factions / fill_characters / fill_outline / fill_chapters / fill_chapter_body / fill_script / fill_intent_shots / rewrite_field',
+      description: 'fill_basic / fill_world / fill_factions / fill_characters / fill_style / fill_plotlines / fill_outline / fill_chapters / fill_chapter_body / fill_script / fill_intent_shots / rewrite_field',
       requiresAuth: false,
     },
   ],
@@ -37,11 +37,11 @@ module.exports = {
       localLlmTimeoutMs: 600000,
       localHistoryLimit: 4,
       localStepHint: [
-        '【本地模型】patch.body 控制在 1600～2000 字，必须输出完整可解析 JSON，且一定要带 patch.body。',
-        '宁可短于 word_target，也不要只写摘要。接近上限时收束本章并闭合 JSON。禁止 think / <think>。',
+        '【本地模型】patch.body 控制在 2500～3500 字，必须输出完整可解析 JSON，且一定要带 patch.body。',
+        '不要低于 2500 字，也不要只写摘要。接近上限时收束本章并闭合 JSON。禁止 think / <think>。',
       ].join(''),
       stepHint: [
-        '【云端模型】patch.body 尽量靠近 bound_context.word_target，可写满目标字数。',
+        '【云端模型】patch.body 写在 2500～3500 字，尽量靠近 bound_context.word_target。',
         '必须输出完整 JSON，patch.body 只含当前这一章。',
       ].join(''),
       parseStepOutput: parseWriterStep,

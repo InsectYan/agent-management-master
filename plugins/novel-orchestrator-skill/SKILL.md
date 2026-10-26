@@ -8,7 +8,7 @@
 
 | action | 说明 |
 |--------|------|
-| plan | 按 intent + coverage 拆五步 |
+| plan | 按 intent + coverage 拆完整开书顺序，正文放在最后 |
 | replan | 已有 tasks 时按用户话重排状态 |
 
 ## 出参

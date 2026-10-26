@@ -33,6 +33,7 @@ const DROP_BODY_KEYS = [
   'characters', 'character_edges',
   'volumes', 'word_targets', 'outline',
   'chapters',
+  'style_preset', 'plotlines', 'script', 'intent_shots', 'body',
 ];
 
 function liftPatch(parsed = {}) {

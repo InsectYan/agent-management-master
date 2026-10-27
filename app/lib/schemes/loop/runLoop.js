@@ -260,6 +260,7 @@ async function runLoop(options) {
       stepPhases.length ? `本步阶段：${expectedPhase}` : '',
       `期望 JSON 结构：${jsonSchemaHint}`,
       input._memoryContext ? `相关记忆：\n${input._memoryContext}` : '',
+      input._knowledgeContext ? `作品知识库：\n${input._knowledgeContext}` : '',
       ...extraUserLines,
       ...stepDirectives,
       `当前 state：${JSON.stringify(state)}`,

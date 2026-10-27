@@ -11,6 +11,8 @@ const { resolveLlm } = require('../lib/llm/resolveLlm');
 const { parseOverrideMaxTokens } = require('../lib/llm/localLlm');
 const { resolveAction } = require('../lib/skill/skillDoc');
 const { registry } = require('../lib/schemes/registry');
+const { resolveWorkScope } = require('../lib/work/scope');
+const { turnNote, writeWorkTrace, searchWorkKnowledge } = require('../lib/work/trace');
 
 class SkillInvokeService extends Service {
   /**
@@ -70,9 +72,17 @@ class SkillInvokeService extends Service {
       input = await skill.callbacks.buildInput(ctx, params) || params;
     }
 
-    const memQuery = input.message || input.topic || input.question || params.message || '';
+    const work = resolveWorkScope(input, skill);
+    if (work) {
+      input.work_id = work.workId;
+      input._workScope = work;
+    }
+
+    const memQuery = input.message || input.topic || input.user_message || input.question || params.message || '';
     if (skill.memoryConfig?.enabled && !input._skipMemory) {
-      input._memoryContext = await this.service.memoryEngine.getContext(skill.name, String(memQuery));
+      const memoryText = await this.service.memoryEngine.getContext(skill.name, String(memQuery), work?.workId);
+      const knowledgeText = this._knowledgeContext(work, String(memQuery));
+      input._memoryContext = [ memoryText, knowledgeText ].filter(Boolean).join('\n\n');
     }
 
     const overrideMaxTokens = parseOverrideMaxTokens(params.max_tokens ?? body.max_tokens ?? query.max_tokens);
@@ -124,18 +134,22 @@ class SkillInvokeService extends Service {
       { input, raw: params }
     );
 
-    /** 应用 outbox memory_ops（清醒记忆路径） */
+    /** 应用 outbox memory_ops（清醒记忆路径），并按作品记一轮 */
     if (skill.memoryConfig?.enabled) {
+      const workId = input._workScope?.workId;
       const ops = result.output?.outbox?.memory_ops || result.output?.memory_ops;
       if (ops) {
-        const memMeta = await this.service.memoryEngine.applyOps(skill.name, ops);
+        const memMeta = await this.service.memoryEngine.applyOps(skill.name, ops, workId);
         result.meta = { ...(result.meta || {}), memory_ops_applied: memMeta.applied };
+      }
+      if (skill.memoryConfig.scope === 'work') {
+        result.meta = { ...(result.meta || {}), ...(await this._recordWorkTurn({ skill, input, result })) };
       }
 
       /** 睡梦记忆入队（PostgreSQL + 未跳过） */
       const skipDream = result.meta?.memory_ops_applied > 0
         && this.config.appSettings.memorySystem?.dream?.skipWhenWake !== false;
-      if (!skipDream && params.session_id) {
+      if (!skipDream && params.session_id && skill.memoryConfig.scope !== 'work') {
         const { upsertDreamJob } = require('../lib/memory/dreamJobStore');
         const dream = await upsertDreamJob({
           skillName: skill.name,
@@ -185,6 +199,56 @@ class SkillInvokeService extends Service {
       llm_label: llm.label,
       llm_source: llm.source,
     };
+  }
+
+  _knowledgeContext(work, query) {
+    if (!work) return '';
+    try {
+      const hits = searchWorkKnowledge(this.config.appSettings.workspacesRoot, work, query, 3);
+      if (!hits.length) return '';
+      return `## 作品知识库\n${hits.map(hit => hit.snippet).join('\n')}`;
+    } catch (err) {
+      if (err.code === 'KNOWLEDGE_PROJECT') return '';
+      this.ctx.logger.warn('[skillInvoke] knowledge %s', err.message);
+      return '';
+    }
+  }
+
+  async _recordWorkTurn({ skill, input, result }) {
+    const work = input._workScope;
+    if (!work) return { work_trace: 'no_work' };
+    const note = turnNote({
+      action: input.action,
+      scene: input.scene,
+      message: input.user_message || input.message || input.topic,
+      reply: result.text || result.output?.reply || result.output?.summary,
+    });
+    const meta = {
+      work_id: work.workId,
+      work_platform: work.platform,
+    };
+    try {
+      await this.service.memoryEngine.append(skill.name, note, '作品', work.workId);
+    } catch (err) {
+      this.ctx.logger.warn('[skillInvoke] work memory %s', err.message);
+      meta.work_memory = 'failed';
+    }
+    try {
+      const trace = writeWorkTrace({
+        workspacesRoot: this.config.appSettings.workspacesRoot,
+        work,
+        skillName: skill.name,
+        traceId: input.trace_id,
+        note,
+        action: input.action,
+        scene: input.scene,
+      });
+      meta.work_trace = trace.workspace;
+    } catch (err) {
+      this.ctx.logger.warn('[skillInvoke] work trace %s', err.message);
+      meta.work_trace = 'failed';
+    }
+    return meta;
   }
 
   /**

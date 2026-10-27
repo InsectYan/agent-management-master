@@ -22,6 +22,13 @@ describe('test/lib/memory/fileMemory.test.js', () => {
     assert.ok(p.endsWith(path.join('platform', 'note-skill', 'MEMORY.md')));
   });
 
+  it('作品记忆落在作品目录', () => {
+    const mem = new FileMemory({ skillName: 'novel-writer-skill', projectId: 'novel', workId: '15', root });
+    mem.append('风格/style：选悬疑', '作品');
+    assert.ok(mem.filePath.includes(path.join('novel', 'works', 'work_15', 'novel-writer-skill', 'MEMORY.md')));
+    assert.ok(mem.read().includes('选悬疑'));
+  });
+
   it('read / append / search', () => {
     const mem = new FileMemory({ skillName: 'ut-file', projectId: 'platform', root });
     const initial = mem.read();

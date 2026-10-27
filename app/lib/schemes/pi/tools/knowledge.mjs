@@ -4,6 +4,7 @@
  */
 
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { Type } from 'typebox';
 import { defineTool } from '@earendil-works/pi-coding-agent';
 
@@ -21,7 +22,9 @@ function textResult(text) {
  * @param {{ projectId: string, knowledgeRoot: string, names: string[] }} options
  */
 export function createKnowledgeTools(options) {
-  const { projectId, knowledgeRoot, names } = options;
+  const { projectId, knowledgeRoot, names, baseDir } = options;
+  const root = baseDir ? path.dirname(baseDir) : knowledgeRoot;
+  const project = baseDir ? path.basename(baseDir) : projectId;
   const tools = [];
 
   if (names.includes('search_knowledge')) {
@@ -33,7 +36,7 @@ export function createKnowledgeTools(options) {
         query: Type.String(),
       }),
       async execute(_id, params) {
-        const hits = search(knowledgeRoot, projectId, params.query, 5);
+        const hits = search(root, project, params.query, 5);
         if (!hits.length) return textResult('没有匹配的知识页。');
         const text = hits.map(hit => `## ${hit.page}\n${hit.snippet}`).join('\n\n');
         return textResult(text);
@@ -51,7 +54,7 @@ export function createKnowledgeTools(options) {
       }),
       async execute(_id, params) {
         try {
-          return textResult(readPage(knowledgeRoot, projectId, params.page));
+          return textResult(readPage(root, project, params.page));
         } catch (err) {
           return textResult(err.message || '无法阅读该页');
         }

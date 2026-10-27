@@ -31,7 +31,7 @@ class MemoryEngineService extends Service {
 
   initSkillMemory(skill) {
     const cfg = skill.memoryConfig || {};
-    if (!cfg.enabled) return null;
+    if (!cfg.enabled || cfg.scope === 'work') return null;
 
     const type = (cfg.type || 'file').toLowerCase();
     let instance;
@@ -76,8 +76,39 @@ class MemoryEngineService extends Service {
     return this._store().get(skillName) || null;
   }
 
-  async getContext(skillName, query) {
-    const entry = this.getInstance(skillName);
+  _workKey(skillName, workId) {
+    return `${skillName}::${workId}`;
+  }
+
+  ensureWorkMemory(skill, workId) {
+    const cfg = skill?.memoryConfig || {};
+    if (!cfg.enabled || !workId) return null;
+    const key = this._workKey(skill.name, workId);
+    const cached = this._store().get(key);
+    if (cached) return cached;
+    const instance = new FileMemory({
+      skillName: skill.name,
+      root: this._memoryRoot(),
+      projectId: skill.project,
+      workId,
+    });
+    const entry = { type: 'file', instance, config: cfg, workId: String(workId) };
+    this._store().set(key, entry);
+    return entry;
+  }
+
+  _entryFor(skillName, workId) {
+    if (workId) {
+      const scoped = this._store().get(this._workKey(skillName, workId));
+      if (scoped) return scoped;
+      const skill = this.ctx.service.pluginManager.get(skillName);
+      if (skill?.memoryConfig?.scope === 'work') return this.ensureWorkMemory(skill, workId);
+    }
+    return this.getInstance(skillName);
+  }
+
+  async getContext(skillName, query, workId) {
+    const entry = this._entryFor(skillName, workId);
     if (!entry) return '';
 
     if (entry.type === 'vector') {
@@ -96,8 +127,8 @@ class MemoryEngineService extends Service {
     return fileContent;
   }
 
-  async applyOps(skillName, ops) {
-    const entry = this.getInstance(skillName);
+  async applyOps(skillName, ops, workId) {
+    const entry = this._entryFor(skillName, workId);
     if (!entry || !Array.isArray(ops)) return { applied: 0 };
 
     let applied = 0;
@@ -135,8 +166,8 @@ class MemoryEngineService extends Service {
     return { type: 'file', content: entry.instance.read() };
   }
 
-  async append(skillName, text, section) {
-    const entry = this.getInstance(skillName);
+  async append(skillName, text, section, workId) {
+    const entry = workId ? this._entryFor(skillName, workId) : this.getInstance(skillName);
     if (!entry) {
       const err = new Error(`Skill ${skillName} 未启用记忆`);
       err.status = 404;
@@ -164,14 +195,29 @@ class MemoryEngineService extends Service {
   }
 
   listEnabled() {
-    return Array.from(this._store().entries()).map(([ name, entry ]) => ({
-      skill: name,
-      type: entry.type,
-      table: entry.config.table || null,
-      backend: entry.type === 'vector'
-        ? (isPostgres() ? 'pgvector' : 'keyword')
-        : entry.type,
-    }));
+    const listed = Array.from(this._store().entries())
+      .filter(([ name ]) => !name.includes('::'))
+      .map(([ name, entry ]) => ({
+        skill: name,
+        type: entry.type,
+        table: entry.config.table || null,
+        scope: entry.config.scope || null,
+        backend: entry.type === 'vector'
+          ? (isPostgres() ? 'pgvector' : 'keyword')
+          : entry.type,
+      }));
+    const seen = new Set(listed.map(row => row.skill));
+    for (const skill of this.ctx.service.pluginManager.list()) {
+      if (!skill.memoryConfig?.enabled || skill.memoryConfig.scope !== 'work' || seen.has(skill.name)) continue;
+      listed.push({
+        skill: skill.name,
+        type: 'file',
+        table: null,
+        scope: 'work',
+        backend: 'work',
+      });
+    }
+    return listed;
   }
 }
 

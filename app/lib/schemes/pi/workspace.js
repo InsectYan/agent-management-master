@@ -23,10 +23,15 @@ function sanitize(value) {
  * @param {string} skillName
  * @returns {string}
  */
-function skillWorkspacePath(workspacesRoot, skillName, projectId) {
+function skillWorkspacePath(workspacesRoot, skillName, projectId, workId) {
   const project = String(projectId || '').trim();
   if (!project) throw new Error('工作区需要 projectId');
-  return path.join(workspacesRoot, sanitize(project), `skill_${sanitize(skillName)}`);
+  const skillDir = `skill_${sanitize(skillName)}`;
+  const work = sanitize(workId);
+  if (work && work !== 'default') {
+    return path.join(workspacesRoot, sanitize(project), 'works', `work_${work}`, skillDir);
+  }
+  return path.join(workspacesRoot, sanitize(project), skillDir);
 }
 
 /**
@@ -36,8 +41,8 @@ function skillWorkspacePath(workspacesRoot, skillName, projectId) {
  * @param {string} skillName
  * @param {string} sessionId
  */
-function sessionJsonlPath(workspacesRoot, projectId, skillName, sessionId) {
-  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId), `${sanitize(sessionId)}.jsonl`);
+function sessionJsonlPath(workspacesRoot, projectId, skillName, sessionId, workId) {
+  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId, workId), `${sanitize(sessionId)}.jsonl`);
 }
 
 /**
@@ -48,8 +53,8 @@ function sessionJsonlPath(workspacesRoot, projectId, skillName, sessionId) {
  * @param {string} sessionId
  * @returns {string}
  */
-function sessionDir(workspacesRoot, projectId, skillName, sessionId) {
-  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId), 'sessions', sanitize(sessionId));
+function sessionDir(workspacesRoot, projectId, skillName, sessionId, workId) {
+  return path.join(skillWorkspacePath(workspacesRoot, skillName, projectId, workId), 'sessions', sanitize(sessionId));
 }
 
 /**
@@ -59,8 +64,8 @@ function sessionDir(workspacesRoot, projectId, skillName, sessionId) {
  * @param {Object} options.skill
  */
 function initSkillWorkspace(options) {
-  const { workspacesRoot, skill } = options;
-  const cwd = skillWorkspacePath(workspacesRoot, skill.name, skill.project);
+  const { workspacesRoot, skill, workId } = options;
+  const cwd = skillWorkspacePath(workspacesRoot, skill.name, skill.project, workId || skill.workId);
   fs.mkdirSync(cwd, { recursive: true });
   return cwd;
 }
@@ -77,9 +82,9 @@ function initSkillWorkspace(options) {
  * @returns {{ cwd: string, session_dir: string, outbox_path: string }}
  */
 function materializeTurn(options) {
-  const { workspacesRoot, projectId, skillName, sessionId, message, context } = options;
-  const cwd = skillWorkspacePath(workspacesRoot, skillName, projectId);
-  const dir = sessionDir(workspacesRoot, projectId, skillName, sessionId);
+  const { workspacesRoot, projectId, skillName, sessionId, message, context, workId } = options;
+  const cwd = skillWorkspacePath(workspacesRoot, skillName, projectId, workId);
+  const dir = sessionDir(workspacesRoot, projectId, skillName, sessionId, workId);
   fs.mkdirSync(dir, { recursive: true });
 
   const outboxPath = path.join(dir, 'outbox.json');

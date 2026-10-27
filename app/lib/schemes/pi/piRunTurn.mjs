@@ -116,13 +116,14 @@ async function promptAndWait(session, text) {
   await waitSessionIdle(session);
 }
 
-async function customToolsFor(skill, knowledgeRoot) {
+async function customToolsFor(skill, knowledgeRoot, knowledgeBaseDir) {
   const names = Array.isArray(skill.config?.pi?.tools) ? skill.config.pi.tools : [];
   if (!names.includes('search_knowledge') && !names.includes('read_knowledge')) return [];
   const { createKnowledgeTools } = await import('./tools/knowledge.mjs');
   return createKnowledgeTools({
     projectId: skill.project,
     knowledgeRoot,
+    baseDir: knowledgeBaseDir || '',
     names,
   });
 }
@@ -134,9 +135,10 @@ async function customToolsFor(skill, knowledgeRoot) {
 export async function runPiTurnFull(input) {
   const {
     skill, message, sessionId, llm, workspacesRoot, hooks, context, memoryContext, knowledgeRoot,
+    workId, knowledgeBaseDir,
   } = input;
 
-  initSkillWorkspace({ workspacesRoot, skill });
+  initSkillWorkspace({ workspacesRoot, skill, workId });
   const { cwd, session_dir, outbox_path } = materializeTurn({
     workspacesRoot,
     projectId: skill.project,
@@ -144,6 +146,7 @@ export async function runPiTurnFull(input) {
     sessionId,
     message,
     context,
+    workId,
   });
 
   const apiKey = (llm?.apiKey || '').trim();
@@ -158,7 +161,7 @@ export async function runPiTurnFull(input) {
     return { reply: stub.reply, outbox: stub, workspace: cwd, session_dir, pi_engine: 'pi-coding-agent' };
   }
 
-  const jsonlPath = sessionJsonlPath(workspacesRoot, skill.project, skill.name, sessionId);
+  const jsonlPath = sessionJsonlPath(workspacesRoot, skill.project, skill.name, sessionId, workId);
   const rel = session_dir.slice(cwd.length).replace(/^[/\\]+/, '').replace(/\\/g, '/');
   const outboxRel = `${rel}/outbox.json`;
   const currentLine = extractCurrentLine(message);
@@ -174,7 +177,7 @@ export async function runPiTurnFull(input) {
   const agentDir = join(cwd, '.pi');
   const modelRuntime = await buildRuntime(llm, agentDir);
   const resourceLoader = await createResourceLoader(skill, cwd);
-  const customTools = await customToolsFor(skill, knowledgeRoot);
+  const customTools = await customToolsFor(skill, knowledgeRoot, knowledgeBaseDir);
   const { session } = await createAgentSession({
     cwd,
     agentDir,

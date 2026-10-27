@@ -8,6 +8,7 @@
 
 const AgentExecutor = require('../base/executor');
 const { runPiTurn } = require('./runTurn');
+const { workKnowledgeDir } = require('../../work/trace');
 const { runRegisteredModules } = require('./skillModules');
 
 /**
@@ -51,6 +52,7 @@ class PiExecutor extends AgentExecutor {
     }
 
     const sessionId = input.session_id || raw.session_id || 'default';
+    const workId = input._workScope?.workId || input.work_id || '';
     const message = String(input.message || input.text || '');
     const stream = raw.stream === true || raw.stream === 'true' || ctx?.query?.stream === 'true';
 
@@ -78,9 +80,11 @@ class PiExecutor extends AgentExecutor {
       workspacesRoot,
       hooks,
       stream,
-      context: { action, session_id: sessionId },
+      context: { action, session_id: sessionId, work_id: workId || undefined },
       memoryContext: input._memoryContext || '',
       knowledgeRoot,
+      workId,
+      knowledgeBaseDir: input._workScope ? workKnowledgeDir(workspacesRoot, input._workScope) : '',
     });
 
     const outbox = turn.outbox || {};

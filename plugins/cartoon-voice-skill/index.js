@@ -18,7 +18,7 @@ module.exports = {
     },
   ],
   dbTables: [],
-  memoryConfig: { enabled: false },
+  memoryConfig: { enabled: true, type: 'file', scope: 'work' },
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'draft_timeline' },

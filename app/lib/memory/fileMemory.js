@@ -18,11 +18,15 @@ function sanitize(value) {
  * @param {string} projectId
  * @returns {string}
  */
-function memoryFilePath(root, skillName, projectId) {
+function memoryFilePath(root, skillName, projectId, workId) {
   const project = sanitize(projectId);
   const skill = sanitize(skillName);
   if (!project) {
     throw new Error('文件记忆需要 projectId');
+  }
+  const work = sanitize(workId);
+  if (work) {
+    return path.join(root, project, 'works', `work_${work}`, skill, 'MEMORY.md');
   }
   return path.join(root, project, skill, 'MEMORY.md');
 }
@@ -50,7 +54,8 @@ class FileMemory {
   constructor(options) {
     this.skillName = options.skillName;
     this.projectId = options.projectId;
-    this.filePath = memoryFilePath(options.root, options.skillName, options.projectId);
+    this.workId = options.workId || '';
+    this.filePath = memoryFilePath(options.root, options.skillName, options.projectId, this.workId);
     ensureFile(this.filePath, this.skillName);
   }
 

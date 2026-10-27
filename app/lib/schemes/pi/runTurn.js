@@ -13,9 +13,9 @@ const {
 } = require('./workspace');
 
 async function runPiTurnLight(input) {
-  const { skill, message, sessionId, llm, workspacesRoot, hooks, stream, context, memoryContext } = input;
+  const { skill, message, sessionId, llm, workspacesRoot, hooks, stream, context, memoryContext, workId } = input;
 
-  initSkillWorkspace({ workspacesRoot, skill });
+  initSkillWorkspace({ workspacesRoot, skill, workId });
   const { cwd, session_dir, outbox_path } = materializeTurn({
     workspacesRoot,
     projectId: skill.project,
@@ -23,6 +23,7 @@ async function runPiTurnLight(input) {
     sessionId,
     message,
     context,
+    workId,
   });
 
   if (!llmAvailable(llm) || !(llm.apiKey || '').trim()) {

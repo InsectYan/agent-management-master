@@ -12,7 +12,7 @@
 
 | action | 说明 |
 |--------|------|
-| ideate | 按 focus 发散（title / intent / summary / overview / genre / themes / auto） |
+| ideate | 按 focus 发散（title / intent / summary / overview / cover / genre / themes / auto） |
 
 ## 出参
 

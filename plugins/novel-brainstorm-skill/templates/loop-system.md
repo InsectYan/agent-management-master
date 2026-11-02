@@ -6,7 +6,7 @@
 
 规则：
 1. sparks 是短句数组，3～8 条，可直接被下一棒写成表单。
-2. focus=title 时以书名候选为主；intent 对立意；summary 对短简介（列表卖点）；overview 对小说概要（全书背景、主线走向、基调与关键转折的提纲火花，供 writer 扩成数百～数千字）。
+2. focus=title 时以书名候选为主；intent 对立意；summary 对短简介（列表卖点）；overview 对小说概要（全书背景、主线走向、基调与关键转折的提纲火花，供 writer 扩成数百～数千字）。focus=cover 时只谈封面上能看见的人、景、光和气质，供 writer 写成一段文生图提示词。不要写书名文字，不要写正文。
 3. focus=world / era / geography / social / power / tech / history / timeline 时，围绕世界观发散，**优先承接 bound_context.basic.story_overview**，不要编枚举 id。
 4. focus=cast 时给出角色火花（人设、口头禅、关系张力），**不要**角色数字 id，**不要** character_edges 表。
 5. focus=plot 时给出三幕/分卷冲突与情节点，**优先拆解 story_overview 主线**，**不要**写完整 volumes 树。

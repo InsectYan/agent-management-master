@@ -148,6 +148,7 @@ const BASIC_KEYS = [
   'creative_intent',
   'summary',
   'story_overview',
+  'cover_prompt',
   'genre_path',
   'genre_category_id',
   'genre_subcategory_id',
@@ -197,6 +198,7 @@ function liftPatch(parsed = {}) {
 
 function fallbackReply(patch) {
   if (patch.title) return `建议书名：${patch.title}`;
+  if (patch.cover_prompt) return '已写好封面提示词，可应用到表单。';
   if (Array.isArray(patch.volumes) && patch.volumes.length) {
     return `已整理 ${patch.volumes.length} 卷大纲，可应用到表单。`;
   }

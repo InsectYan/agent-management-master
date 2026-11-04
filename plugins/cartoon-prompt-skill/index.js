@@ -1,12 +1,20 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
+const { buildPromptSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
 const { parsePromptStep } = require('./lib/parseStep');
+
+function loadBasePrompt() {
+  const filePath = path.join(__dirname, 'templates', 'loop-system.md');
+  return fs.readFileSync(filePath, 'utf8').trim();
+}
 
 module.exports = {
   name: 'cartoon-prompt-skill',
   project: 'cartoon',
-  version: '0.1.0',
+  version: '0.2.0',
   description: '为分镜写正负提示词，不改节点图，不提交 ComfyUI',
   scheme: 'loop',
   routes: [
@@ -27,13 +35,22 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
-      maxTokens: 2048,
-      localMaxTokens: 2048,
-      llmTimeoutMs: 180000,
-      localLlmTimeoutMs: 180000,
+      maxTokens: 16384,
+      localMaxTokens: 16384,
+      llmTimeoutMs: 300000,
+      localLlmTimeoutMs: 300000,
       parseStepOutput: parsePromptStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompts":[{"index":0,"positive_zh":"","negative_zh":""}]}',
-      userContextFields: [ 'shots', 'visual_style' ],
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompts":[{"index":0,"positive_zh":"","negative_zh":"","production_note":""}]}',
+      userContextFields: [
+        'shots',
+        'visual_style',
+        'visual_style_label',
+        'visual_style_prompt',
+        'genre',
+        'genre_subcategory',
+        'is_xianxia',
+        'content_type',
+      ],
       initialState: { thinking: '', reply: '', summary: '', prompts: [] },
       stateMerge: {
         thinking: 'replace',
@@ -51,13 +68,28 @@ module.exports = {
         err.status = 400;
         throw err;
       }
+      const routeInput = {
+        ...params,
+        visual_style: String(params.visual_style || ''),
+        visual_style_label: String(params.visual_style_label || ''),
+        visual_style_prompt: String(params.visual_style_prompt || ''),
+        genre: String(params.genre || ''),
+        genre_subcategory: String(params.genre_subcategory || ''),
+      };
+      const isXianxia = detectXianxia(routeInput);
       return {
         ...params,
         ...readProductionSource(params),
         action: 'draft',
-        topic: '提示词',
-        shots: shots.slice(0, 6),
-        visual_style: String(params.visual_style || ''),
+        topic: isXianxia ? '修仙漫剧提示词' : '漫剧提示词',
+        shots: shots.slice(0, 24),
+        visual_style: routeInput.visual_style,
+        visual_style_label: routeInput.visual_style_label,
+        visual_style_prompt: routeInput.visual_style_prompt,
+        genre: routeInput.genre,
+        genre_subcategory: routeInput.genre_subcategory,
+        is_xianxia: isXianxia,
+        loop_system_prompt: buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
       };
     },
   },

@@ -39,7 +39,7 @@
 
 ```json
 {
-  "thinking": "简短推理",
+  "thinking": "推理与取舍",
   "reply": "给作者看的自然语言",
   "target_fields": ["title"],
   "patch": { "title": "……" }

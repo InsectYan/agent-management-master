@@ -107,41 +107,19 @@ function buildStoryboardSystemPrompt(basePrompt, input = {}) {
 
 function buildPromptSystemPrompt(basePrompt, input = {}) {
   const isXianxia = detectXianxia(input);
-  const styleCatalog = readRef('style-catalog.md');
-  const xianxiaRef = isXianxia ? readRef('xianxia-15s.md') : '';
-  const generalRefs = [
-    [ '分镜10-15s 中与画面提示词 / 负面约束 / 连续性相关的完整原文', readRef('shot-10-15s.md') ],
-    [ 'Seedance2.5 中与执行段提示词 / 表演 / 防错相关的完整原文', readRef('seedance-2.5.md') ],
-  ];
-  if (isXianxia && xianxiaRef) {
-    generalRefs.push([ '修仙15漫剧提示词完整原文（修仙场景强制）', xianxiaRef ]);
-  }
-
-  const refsText = generalRefs
-    .filter(([, text ]) => text)
-    .map(([ title, text ]) => `===== ${title} 开始 =====\n${text}\n===== ${title} 结束 =====`)
-    .join('\n\n');
-
   return [
     String(basePrompt || '').trim(),
     '',
-    '—— 本平台产出优先级（高于附录精简条款）——',
+    '—— 本平台产出优先级 ——',
     'positive_zh 开头写一次【风格】【场记】【时长】。每一个时间片内部都要写画面、对白、光影、表演、动态、承接，不要只在整段末尾各写一次。对白原句写进该时间片，production_note 只核对对白并写音效。',
     '每一条对应一段 8—15 秒视频；【时间轴】从 0.0 连续写到 duration_sec，段内可多次切镜，禁止拆成互不衔接的 4 秒碎片。',
-    '写这一镜看得见的内容，不要把章节原文再贴进提示词。整段必须是闭合 JSON，写完 negative_zh 就结束。',
-    '附录中「提示词压缩」「不超过3200字」「台词不超过30字」等精简条款不适用。',
+    '时间片、对白、光影、表演、动态、承接都要写全，不设字数上限。写完再闭合 JSON，不要写到一半就停。',
     '',
-    '—— 风格与题材路由（补充）——',
-    '当前是否修仙：' + (isXianxia ? '是' : '否'),
+    '—— 风格与题材 ——',
+    '当前是否修仙：' + (isXianxia ? '是。落实修仙特效、动态和人数锁定，不要硬删粒子与氛围。' : '否。不要硬塞灵气法宝。'),
     '画面风格 value：' + String(input.visual_style || ''),
     '画面风格展示名：' + String(input.visual_style_label || ''),
     '画面风格提示词描述（写入 positive_zh 时必须明确写出，不可只写短标签）：' + String(input.visual_style_prompt || input.visual_style_label || input.visual_style || ''),
-    '示例格式：色粉画【柔和朦胧，适合肖像，粉质感】；作为提示词时写清“色粉画风格：柔和朦胧，适合肖像，粉质颗粒触感……”',
-    '',
-    styleCatalog ? `===== 风格大全（完整原文）开始 =====\n${styleCatalog}\n===== 风格大全（完整原文）结束 =====` : '',
-    '',
-    '—— 实用性参考文档（只允许原样遵守与落实，禁止优化删减简化）——',
-    refsText,
   ].filter(Boolean).join('\n');
 }
 

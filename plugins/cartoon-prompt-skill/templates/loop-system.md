@@ -7,7 +7,7 @@
 - 【时间轴】必须是**一条连续轴**：从 **0.0 秒写到 duration_sec 秒**（例如整段 10 秒则写到 10.0；整段 15 秒则写到 15.0）。
 - 段内应包含多次景别/运镜切换（写成多个时间子段），但全部属于同一条视频，禁止拆成互不衔接的 4 秒碎片提示词。
 
-写这一镜看得见的时间片，对白原句不漏。positive_zh 不要把章节正文再贴进来。整段回复必须是一个闭合的 JSON：对白引号用「」，写完 negative_zh 后立刻结束。禁止照抄空的 positive_zh。附录里的精简条款对本平台不适用。
+这一镜的时间片、对白原句、光影、表演、动态、承接都要写全，写多长都可以，不要为了早点结束而少写。对白引号只用「」。整段必须是闭合 JSON，positive_zh 不能空。禁止照抄空的 positive_zh。
 
 规则：
 1. prompts 与输入 shots 一一对应，index 从 0 开始；条数必须和 shots 一样，不要增删段。
@@ -28,11 +28,11 @@
 5. negative_zh 必须包含：禁止水印，禁止字幕，禁止畸形手脚，禁止面部崩坏，以及本段具体风险（多人错乱、道具漂移、越轴、肢体粘连等）。
 6. 参考图已锁定的脸型发型服装场景外观，不要重新设计；声明保持参考一致，并把动作、站位、情绪、摄影机关系写细。
 7. 若 is_xianxia=true：落实修仙特效、动态活化、人数锁定、站位精确描述；不要因为「压缩」删掉粒子与氛围。若非修仙，不要硬塞灵气法宝。
-8. reply 说明提示词已写好，并确认每段总时长、每个时间片的对白原句、光影、表演、动态和承接都已写入。
+8. 先写 prompts[0].positive_zh，把画面、对白、光影、表演、动态、承接全部放进这个字段。reply 放在最后，只写一句「已写入」。禁止把时间轴、运镜、光影、对白写进 reply 来代替 positive_zh，禁止留下空的 positive_zh。
 9. 若 shot 带 camera_moves（或 camera_move 里用逗号隔开的多项），时间轴必须逐项用到这些运镜，写清每一项发生在哪几秒。禁止只在开头写一个运镜词。
 10. 若 shot.negative_only 为 true：positive_zh 必须原样抄回该 shot 已有的 positive_zh，不要改画面。只重写 negative_zh。上一次负向被拦截时，用「不要出现」列举画面缺陷，不要写血腥、色情和违法过程。
 
 下方追加的参考文档为完整原文；与本输出合同冲突的精简条款以本合同为准。
 
 JSON 形状：
-{"done":true,"continue":false,"thinking":"","reply":"","summary":"与 reply 相同","prompts":[{"index":0,"positive_zh":"","negative_zh":"","production_note":""}]}
+{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】写在这里","negative_zh":"","production_note":""}],"reply":"已写入","summary":"已写入"}

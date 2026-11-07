@@ -1,7 +1,5 @@
 'use strict';
 
-const MAX_PROMPTS = 24;
-
 function stripThink(text) {
   return String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -40,7 +38,7 @@ function mergeProductionNote(positive, note) {
 
 function parsePromptStep(rawText) {
   const parsed = tryParseJsonObject(rawText) || {};
-  const prompts = Array.isArray(parsed.prompts) ? parsed.prompts.slice(0, MAX_PROMPTS).map((item, index) => {
+  const prompts = Array.isArray(parsed.prompts) ? parsed.prompts.map((item, index) => {
     const positive = mergeProductionNote(item?.positive_zh, item?.production_note);
     return {
       index: Number.isInteger(item?.index) ? item.index : index,
@@ -48,7 +46,7 @@ function parsePromptStep(rawText) {
       negative_zh: String(item?.negative_zh || '').trim(),
       production_note: String(item?.production_note || '').trim(),
     };
-  }).filter(item => item.positive_zh) : [];
+  }).filter(item => item.positive_zh || item.negative_zh) : [];
   const reply = String(parsed.reply || parsed.summary || '').trim() || `写了 ${prompts.length} 条提示词`;
   return {
     continue: false,

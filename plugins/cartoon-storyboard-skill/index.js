@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
+const { minStoryUnits } = require('../_shared/storyCoverage');
 const { buildStoryboardSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
 const { parseStoryboardStep } = require('./lib/parseStep');
 
@@ -39,18 +40,19 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
-      maxTokens: 16384,
-      localMaxTokens: 16384,
+      maxTokens: 32768,
+      localMaxTokens: 32768,
       llmTimeoutMs: 300000,
       localLlmTimeoutMs: 300000,
       parseStepOutput: parseStoryboardStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","shots":[{"description":"","duration_sec":10,"shot_size":"中景","camera_move":"固定","dialogue":""}]}',
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["全景","中景","近景"],"camera_moves":["固定","推","摇"],"dialogue":""}],"omissions":[{"target":"","reason":""}]}',
       userContextFields: [
         'script_data',
         'body',
         'seed_shot',
         'outline_only',
         'expand_one',
+        'min_shots',
         'visual_style',
         'visual_style_label',
         'visual_style_prompt',
@@ -59,12 +61,13 @@ module.exports = {
         'is_xianxia',
         'content_type',
       ],
-      initialState: { thinking: '', reply: '', summary: '', shots: [] },
+      initialState: { thinking: '', reply: '', summary: '', shots: [], omissions: [] },
       stateMerge: {
         thinking: 'replace',
         reply: 'replace',
         summary: 'replace',
         shots: 'replace',
+        omissions: 'replace',
       },
     },
   },
@@ -76,7 +79,7 @@ module.exports = {
         err.status = 400;
         throw err;
       }
-      const body = String(params.body || '').slice(0, 20000);
+      const body = String(params.body || '');
       const outlineOnly = truthy(params.outline_only);
       const expandOne = truthy(params.expand_one);
       const routeInput = {
@@ -117,6 +120,11 @@ module.exports = {
         seed_shot: params.seed_shot || null,
         outline_only: outlineOnly,
         expand_one: expandOne,
+        min_shots: outlineOnly
+          ? (Number(params.min_shots) > 0
+            ? Math.round(Number(params.min_shots))
+            : Math.max(minStoryUnits(body.length), Array.isArray(script.scenes) ? script.scenes.length : 1))
+          : undefined,
         visual_style: routeInput.visual_style,
         visual_style_label: routeInput.visual_style_label,
         visual_style_prompt: routeInput.visual_style_prompt,

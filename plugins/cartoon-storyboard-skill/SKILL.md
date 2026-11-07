@@ -2,7 +2,7 @@
 
 ## 用途
 
-把短剧本拆成**剧情段**（每段 8—15 秒可生成视频，段内可多次切镜），不是约 4 秒的单切镜。只返回分镜行，不改小说正文，不调用 ComfyUI。
+把剧本拆成剧情段（每段 8—15 秒可生成视频，段内可多次切镜）。镜头条数只有下限、没有上限。一条镜头的描述和提示词不设字数上限，对白多时可以写到数千字。跳过或删减必须写入 omissions 并说明理由。不改小说正文，不调用 ComfyUI。
 
 系统提示会原样追加：
 
@@ -31,4 +31,4 @@
 
 ## 出参说明
 
-- `output.shots`：分镜数组，含 description、duration_sec（8—15）、shot_size、camera_move、dialogue
+- `output.shots`：分镜数组，含 description、duration_sec（8—15）、shot_sizes（主景别多选）、camera_moves（运镜多选）、dialogue

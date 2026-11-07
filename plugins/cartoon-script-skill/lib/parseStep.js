@@ -1,5 +1,7 @@
 'use strict';
 
+const { normalizeOmissions } = require('../../_shared/storyCoverage');
+
 function stripThink(text) {
   return String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -30,11 +32,12 @@ function tryParseJsonObject(text) {
 function parseScriptStep(rawText) {
   const parsed = tryParseJsonObject(rawText) || {};
   const data = parsed.script_data && typeof parsed.script_data === 'object' ? parsed.script_data : {};
-  const characters = Array.isArray(data.characters) ? data.characters.slice(0, 4).map(item => ({
+  // 禁止截断人物/场次：下游分镜依赖完整剧本，不得在此 slice 删减
+  const characters = Array.isArray(data.characters) ? data.characters.map(item => ({
     name: String(item?.name || '').trim(),
     look: String(item?.look || '').trim(),
   })).filter(item => item.name) : [];
-  const scenes = Array.isArray(data.scenes) ? data.scenes.slice(0, 4).map(item => ({
+  const scenes = Array.isArray(data.scenes) ? data.scenes.map(item => ({
     title: String(item?.title || '').trim(),
     summary: String(item?.summary || '').trim(),
   })).filter(item => item.title || item.summary) : [];
@@ -49,6 +52,7 @@ function parseScriptStep(rawText) {
       summary: String(data.summary || reply).trim(),
       characters,
       scenes,
+      omissions: normalizeOmissions(data.omissions != null ? data.omissions : parsed.omissions),
     },
   };
 }

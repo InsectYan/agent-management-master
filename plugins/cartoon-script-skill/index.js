@@ -1,6 +1,7 @@
 'use strict';
 
 const { readProductionSource } = require('../_shared/productionSource');
+const { minStoryUnits } = require('../_shared/storyCoverage');
 const { parseScriptStep } = require('./lib/parseStep');
 
 module.exports = {
@@ -27,13 +28,13 @@ module.exports = {
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
-      maxTokens: 8192,
-      localMaxTokens: 8192,
+      maxTokens: 32768,
+      localMaxTokens: 32768,
       llmTimeoutMs: 300000,
       localLlmTimeoutMs: 300000,
       parseStepOutput: parseScriptStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","script_data":{"summary":"","characters":[{"name":"","look":""}],"scenes":[{"title":"","summary":""}]}}',
-      userContextFields: [ 'chapter_title', 'body', 'visual_style' ],
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","script_data":{"summary":"","characters":[{"name":"","look":""}],"scenes":[{"title":"","summary":""}],"omissions":[{"target":"","reason":""}]}}',
+      userContextFields: [ 'chapter_title', 'body', 'visual_style', 'min_scenes' ],
       initialState: { thinking: '', reply: '', summary: '', script_data: {} },
       stateMerge: {
         thinking: 'replace',
@@ -51,12 +52,14 @@ module.exports = {
         err.status = 400;
         throw err;
       }
+      const minScenes = Number(params.min_scenes) > 0 ? Math.round(Number(params.min_scenes)) : minStoryUnits(body.length);
       return {
         ...params,
         ...readProductionSource(params),
         action: 'draft',
         topic: String(params.chapter_title || '未命名章节').slice(0, 80),
-        body: body.slice(0, 20000),
+        body,
+        min_scenes: minScenes,
         visual_style: String(params.visual_style || ''),
         visual_style_label: String(params.visual_style_label || ''),
         visual_style_prompt: String(params.visual_style_prompt || ''),

@@ -37,8 +37,8 @@ module.exports = {
       temperature: 0.4,
       maxTokens: 32768,
       localMaxTokens: 32768,
-      llmTimeoutMs: 300000,
-      localLlmTimeoutMs: 300000,
+      llmTimeoutMs: 900000,
+      localLlmTimeoutMs: 900000,
       parseStepOutput: parsePromptStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompts":[{"index":0,"positive_zh":"","negative_zh":"","production_note":""}]}',
       userContextFields: [

@@ -5,7 +5,17 @@
 
 'use strict';
 
+const { Agent } = require('undici');
 const { resolveLlmTimeout, applyLocalChatOptions } = require('./localLlm');
+
+function llmDispatcher(timeoutMs) {
+  const budget = Math.max(Number(timeoutMs) || 0, 60000) + 15000;
+  return new Agent({
+    headersTimeout: budget,
+    bodyTimeout: budget,
+    connectTimeout: 15000,
+  });
+}
 
 /**
  * @typedef {Object} ChatMessage
@@ -104,44 +114,50 @@ async function llmChat(options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeout);
   const unbind = bindAbortSignal(signal, controller);
+  const dispatcher = llmDispatcher(effectiveTimeout);
 
-  let res;
   try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
-      },
-      body: JSON.stringify(applyLocalChatOptions(llm, {
-        model: llm.model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
-        stream: false,
-      })),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, base));
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${llm.apiKey || 'ollama'}`,
+        },
+        body: JSON.stringify(applyLocalChatOptions(llm, {
+          model: llm.model,
+          messages,
+          temperature,
+          max_tokens: maxTokens,
+          stream: false,
+        })),
+        signal: controller.signal,
+        dispatcher,
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, base));
+      }
+      const cause = err?.cause?.message || err?.cause?.code || '';
+      const detail = cause ? `${err.message}: ${cause}` : err.message;
+      throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+    } finally {
+      clearTimeout(timer);
+      unbind();
     }
-    const cause = err?.cause?.message || err?.cause?.code || '';
-    const detail = cause ? `${err.message}: ${cause}` : err.message;
-    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${base}）`);
+
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = raw?.error?.message || raw?.message || res.statusText || 'LLM 请求失败';
+      throw new Error(`LLM ${res.status}: ${msg}`);
+    }
+
+    const text = String(raw?.choices?.[0]?.message?.content || '').trim();
+    return { text, usage: raw?.usage, raw };
   } finally {
-    clearTimeout(timer);
-    unbind();
+    await dispatcher.close().catch(() => {});
   }
-
-  const raw = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = raw?.error?.message || raw?.message || res.statusText || 'LLM 请求失败';
-    throw new Error(`LLM ${res.status}: ${msg}`);
-  }
-
-  const text = String(raw?.choices?.[0]?.message?.content || '').trim();
-  return { text, usage: raw?.usage, raw };
 }
 
 /**
@@ -160,40 +176,46 @@ async function llmChatOllama(options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeout);
   const unbind = bindAbortSignal(signal, controller);
+  const dispatcher = llmDispatcher(effectiveTimeout);
 
-  let res;
   try {
-    res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: llm.model,
-        messages,
-        think: false,
-        stream: false,
-        options: { temperature, num_predict: maxTokens },
-      }),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (err?.name === 'AbortError') {
-      throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, origin));
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: llm.model,
+          messages,
+          think: false,
+          stream: false,
+          options: { temperature, num_predict: maxTokens },
+        }),
+        signal: controller.signal,
+        dispatcher,
+      });
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        throw new Error(abortErrorMessage(signal, 'chat', effectiveTimeout, llm, origin));
+      }
+      const cause = err?.cause?.message || err?.cause?.code || '';
+      const detail = cause ? `${err.message}: ${cause}` : err.message;
+      throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${origin}）`);
+    } finally {
+      clearTimeout(timer);
+      unbind();
     }
-    const cause = err?.cause?.message || err?.cause?.code || '';
-    const detail = cause ? `${err.message}: ${cause}` : err.message;
-    throw new Error(`${detail}（profile=${llm.profileId}, model=${llm.model}, base=${origin}）`);
-  } finally {
-    clearTimeout(timer);
-    unbind();
-  }
 
-  const raw = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = raw?.error || raw?.message || res.statusText || 'LLM 请求失败';
-    throw new Error(`LLM ${res.status}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+    const raw = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = raw?.error || raw?.message || res.statusText || 'LLM 请求失败';
+      throw new Error(`LLM ${res.status}: ${typeof msg === 'string' ? msg : JSON.stringify(msg)}`);
+    }
+    const text = String(raw?.message?.content || '').trim();
+    return { text, raw };
+  } finally {
+    await dispatcher.close().catch(() => {});
   }
-  const text = String(raw?.message?.content || '').trim();
-  return { text, raw };
 }
 
 /**
@@ -219,6 +241,7 @@ async function llmChatStream(options) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), effectiveTimeout);
   const unbind = bindAbortSignal(signal, controller);
+  const dispatcher = llmDispatcher(effectiveTimeout);
 
   try {
     let res;
@@ -237,6 +260,7 @@ async function llmChatStream(options) {
           stream: true,
         })),
         signal: controller.signal,
+        dispatcher,
       });
     } catch (err) {
       if (err?.name === 'AbortError') {
@@ -299,6 +323,7 @@ async function llmChatStream(options) {
   } finally {
     clearTimeout(timer);
     unbind();
+    await dispatcher.close().catch(() => {});
   }
 }
 

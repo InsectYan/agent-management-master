@@ -4,7 +4,7 @@
 
 按分镜写中文正向、负向提示词与对白/音效备注。不改 ComfyUI 节点图，不提交出图。
 
-要求描写丰富、动人、场景齐全：`positive_zh` 含风格、场记、时间轴、光影、表演、动态、承接。时间轴要写神态和动作的变化过程，以及每一项运镜发生在哪几秒，不能把剧本换个说法再贴一遍。`production_note` 写对白与音效。附录精简条款对本平台不适用。
+要求描写丰富、动人、场景齐全：`positive_zh` 含风格、场记、时长。每个时间片单独写画面、对白原句、光影、表演、动态、承接。对白按镜头 dialogue 的原句放进对应时间片，不改词、不漏句。`production_note` 核对对白并写音效。附录精简条款对本平台不适用。
 
 ## 执行动作
 
@@ -21,6 +21,6 @@
 
 ## 出参说明
 
-- `output.prompts`：positive_zh、negative_zh、production_note（落库时 production_note 并入 positive_zh）
+- `output.prompts`：positive_zh、negative_zh、production_note（对白原句写在 positive_zh 的对应时间片里）
 
 重启 Agent 服务后新合同才会生效。

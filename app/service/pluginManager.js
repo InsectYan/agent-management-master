@@ -65,6 +65,14 @@ class PluginManagerService extends Service {
    * @returns {Promise<SkillMeta[]>}
    */
   async loadAll() {
+    if (!this.app.__localAiServerTimeout) {
+      this.app.__localAiServerTimeout = true;
+      this.app.once('server', server => {
+        server.requestTimeout = 17 * 60 * 1000;
+        server.timeout = 0;
+        this.app.logger.info('[Boot] 本地 AI 请求等待放宽到 17 分钟');
+      });
+    }
     const pluginDir = this.getPluginDir();
     const store = this._store();
     store.clear();

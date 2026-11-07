@@ -13,6 +13,10 @@ const { startDreamWorker } = require('./app/lib/memory/dreamWorker');
 
 module.exports = app => {
   app.schemeRegistry = registry;
+  app.once('server', server => {
+    server.requestTimeout = 17 * 60 * 1000;
+    server.timeout = 0;
+  });
 
   app.beforeStart(async () => {
     dotenv.config({ path: path.join(app.baseDir, '.env') });

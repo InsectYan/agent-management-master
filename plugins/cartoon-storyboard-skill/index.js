@@ -42,8 +42,8 @@ module.exports = {
       temperature: 0.4,
       maxTokens: 32768,
       localMaxTokens: 32768,
-      llmTimeoutMs: 300000,
-      localLlmTimeoutMs: 300000,
+      llmTimeoutMs: 900000,
+      localLlmTimeoutMs: 900000,
       parseStepOutput: parseStoryboardStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["全景","中景","近景"],"camera_moves":["固定","推","摇"],"dialogue":""}],"omissions":[{"target":"","reason":""}]}',
       userContextFields: [

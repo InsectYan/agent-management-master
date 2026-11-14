@@ -6,8 +6,8 @@
 
 'use strict';
 
-/** 本地默认超时：单次 15 分钟 */
-const LOCAL_TIMEOUT_MS = 900000;
+/** 本地默认超时：单次 6 小时。长提示词不要在 15 分钟被客户端掐断。 */
+const LOCAL_TIMEOUT_MS = 21600000;
 /** 云端默认超时：相对原 180s 放宽 */
 const REMOTE_TIMEOUT_MS = 300000;
 const LOCAL_DEFAULT_MAX_TOKENS = 2048;

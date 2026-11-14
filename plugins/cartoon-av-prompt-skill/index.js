@@ -5,6 +5,20 @@ const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
 
+function parseAvStep(rawText) {
+  const parsed = parsePromptStep(rawText);
+  const prompts = Array.isArray(parsed.prompts) ? parsed.prompts : [];
+  const positive = String(prompts[0]?.positive_zh || '').trim();
+  return {
+    ...parsed,
+    continue: false,
+    done: true,
+    prompts,
+    reply: positive ? (parsed.reply || '已写入') : '没有画面提示词，沿用上一稿',
+    summary: positive ? (parsed.summary || '已写入') : '没有画面提示词，沿用上一稿',
+  };
+}
+
 function loadBasePrompt() {
   return fs.readFileSync(path.join(__dirname, 'templates', 'loop-system.md'), 'utf8').trim();
 }
@@ -35,10 +49,10 @@ module.exports = {
       temperature: 0.3,
       maxTokens: 32768,
       localMaxTokens: 32768,
-      llmTimeoutMs: 900000,
-      localLlmTimeoutMs: 900000,
-      parseStepOutput: parsePromptStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompts":[{"index":0,"positive_zh":"","negative_zh":"","production_note":""}]}',
+      llmTimeoutMs: 21600000,
+      localLlmTimeoutMs: 21600000,
+      parseStepOutput: parseAvStep,
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
         'shots',
         'body',

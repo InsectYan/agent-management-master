@@ -14,7 +14,7 @@ function loadBasePrompt() {
 module.exports = {
   name: 'cartoon-prompt-skill',
   project: 'cartoon',
-  version: '0.2.0',
+  version: '0.4.0',
   description: '为分镜写正负提示词，不改节点图，不提交 ComfyUI',
   scheme: 'loop',
   routes: [
@@ -31,19 +31,20 @@ module.exports = {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'draft' },
     loop: {
-      maxSteps: 1,
+      maxSteps: 2,
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,
       maxTokens: 32768,
       localMaxTokens: 32768,
-      llmTimeoutMs: 900000,
-      localLlmTimeoutMs: 900000,
+      llmTimeoutMs: 21600000,
+      localLlmTimeoutMs: 21600000,
       parseStepOutput: parsePromptStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompts":[{"index":0,"positive_zh":"","negative_zh":"","production_note":""}]}',
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","frame_start_zh":"【风格】【场记】【画面】【光影】【表演】","frame_end_zh":"【风格】【场记】【画面】【光影】【表演】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
         'shots',
         'body',
+        'repair_note',
         'visual_style',
         'visual_style_label',
         'visual_style_prompt',

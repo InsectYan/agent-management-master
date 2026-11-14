@@ -14,7 +14,7 @@ const { startDreamWorker } = require('./app/lib/memory/dreamWorker');
 module.exports = app => {
   app.schemeRegistry = registry;
   app.once('server', server => {
-    server.requestTimeout = 17 * 60 * 1000;
+    server.requestTimeout = 6 * 60 * 60 * 1000 + 10 * 60 * 1000;
     server.timeout = 0;
   });
 

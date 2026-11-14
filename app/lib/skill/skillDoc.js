@@ -79,7 +79,7 @@ function parseActions(md) {
     actions.push({
       id,
       description: cells[1] || '',
-      requiredParams: (cells[2] || '').split(/[,，]/).map(s => s.trim()).filter(Boolean),
+      requiredParams: (cells[2] || '').split(/[,，、]/).map(s => s.trim()).filter(Boolean),
     });
   }
   return actions;

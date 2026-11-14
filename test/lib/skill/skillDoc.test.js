@@ -45,4 +45,14 @@ describe('test/lib/skill/skillDoc.test.js', () => {
   it('parseActions 空段落返回 []', () => {
     assert.deepEqual(parseActions('## 无动作\n\n'), []);
   });
+
+  it('parseActions 按顿号拆开必填参数', () => {
+    const md = '## 执行动作\n\n| action | 说明 | 必填参数 |\n| draft | 写 | kind、name |\n';
+    const actions = parseActions(md);
+    assert.deepEqual(actions[0].requiredParams, [ 'kind', 'name' ]);
+    const missing = resolveAction({ actions }, { action: 'draft', kind: 'character' });
+    assert.ok(missing.errors.some(item => item.includes('name')));
+    const ok = resolveAction({ actions }, { action: 'draft', kind: 'character', name: '甲' });
+    assert.deepEqual(ok.errors, []);
+  });
 });

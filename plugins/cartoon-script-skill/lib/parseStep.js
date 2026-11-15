@@ -1,6 +1,7 @@
 'use strict';
 
 const { normalizeOmissions } = require('../../_shared/storyCoverage');
+const { settleScript, repairLines } = require('./scriptGate');
 
 function stripThink(text) {
   return String(text || '')
@@ -62,9 +63,12 @@ function readOneJsonString(text, at, key) {
 
 function sceneFrom(item) {
   const title = String(item?.title || item?.place || item?.location || '').trim();
-  const summary = String(item?.summary || item?.content || item?.body || item?.text || '').trim();
+  let summary = String(item?.summary || item?.content || item?.body || item?.text || '').trim();
+  const dialogue = String(item?.dialogue || '').trim();
+  if (dialogue && !summary.includes(dialogue)) summary = [ summary, dialogue ].filter(Boolean).join('\n');
+  const purpose = String(item?.purpose || item?.function || '').trim();
   if (!title && !summary) return null;
-  return { title, summary };
+  return { title, summary, purpose };
 }
 
 function scenesFromList(list) {
@@ -106,9 +110,10 @@ function scriptDataOf(parsed) {
   return {};
 }
 
-function parseScriptStep(rawText) {
+function parseScriptStep(rawText, ctx = {}) {
   const parsed = tryParseJsonObject(rawText) || {};
   const data = scriptDataOf(parsed);
+  const input = ctx.input || {};
   const characters = Array.isArray(data.characters) ? data.characters.map(item => ({
     name: String(item?.name || '').trim(),
     look: String(item?.look || item?.appearance || '').trim(),
@@ -116,18 +121,41 @@ function parseScriptStep(rawText) {
   let scenes = scenesFromList(data.scenes);
   if (!scenes.length) scenes = scenesFromList(parsed.scenes);
   if (!scenes.length) scenes = salvageScenes(rawText);
-  const reply = String(parsed.reply || parsed.summary || data.summary || '').trim();
+  const draft = {
+    logline: String(data.logline || data.one_line || '').trim(),
+    summary: String(data.summary || '').trim(),
+    characters,
+    scenes,
+    omissions: normalizeOmissions(data.omissions != null ? data.omissions : parsed.omissions),
+  };
+  const minScenes = Number(input.min_scenes) > 0 ? Math.round(Number(input.min_scenes)) : 1;
+  const settled = settleScript(draft, input.body, minScenes);
+  const issues = settled.issues;
+  const step = Number(ctx.step) || 0;
+  const maxSteps = Number(ctx.maxSteps) > 0 ? Number(ctx.maxSteps) : 1;
+  const canRepair = issues.length > 0 && step < maxSteps - 1;
+  const shown = issues.slice(0, 8);
+  const repairNotes = issues.length
+    ? shown
+      .concat(issues.length > shown.length ? [ `另有 ${issues.length - shown.length} 条` ] : [])
+      .concat(repairLines(settled.script, input.body))
+      .join('\n')
+    : '';
+  const reply = issues.length
+    ? shown.slice(0, 4).join('；')
+    : String(parsed.reply || parsed.summary || draft.summary || '').trim();
   return {
-    continue: false,
-    done: true,
+    continue: canRepair,
+    done: !canRepair,
     thinking: String(parsed.thinking || '').trim(),
     reply,
     summary: reply,
+    repair_notes: repairNotes,
     script_data: {
-      summary: String(data.summary || reply).trim(),
-      characters,
-      scenes,
-      omissions: normalizeOmissions(data.omissions != null ? data.omissions : parsed.omissions),
+      ...settled.script,
+      summary: settled.script.summary || reply,
+      accepted: issues.length === 0,
+      reject_reasons: issues,
     },
   };
 }

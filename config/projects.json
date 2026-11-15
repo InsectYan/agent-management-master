@@ -52,6 +52,7 @@
         "cartoon-av-prompt-skill",
         "cartoon-asset-skill",
         "cartoon-asset-sheet-skill",
+        "cartoon-asset-profile-skill",
         "cartoon-voice-skill",
         "cartoon-review-skill"
       ]

@@ -3,7 +3,6 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
-const { minStoryUnits } = require('../_shared/storyCoverage');
 const { buildStoryboardSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
 const { parseStoryboardStep } = require('./lib/parseStep');
 
@@ -19,8 +18,8 @@ function truthy(value) {
 module.exports = {
   name: 'cartoon-storyboard-skill',
   project: 'cartoon',
-  version: '0.3.0',
-  description: '把剧本拆成分镜行，不写小说正文，不提交 ComfyUI',
+  version: '0.3.1',
+  description: '把已定稿剧本拆成分镜行，不回读章节原文，不提交 ComfyUI',
   scheme: 'loop',
   routes: [
     {

@@ -2,7 +2,9 @@
 
 ## 用途
 
-把章节正文按情节节点归纳成可拍场次。可以改写叙述，对白留原句，不照抄章节，也不收成短摘要。场次下限按字数计算，节点更多就继续加，不锁定在下限。删减必须写入 omissions 并说明理由。
+把章节正文译成可拍定稿，供后续分镜和提示词单独使用。心理和旁白改成动作、表情、停顿；对白留原句。一场只有一个地点，标题写成「内·地点·日」或「外·地点·夜」。不写景别和运镜，不写故事包，不调 ComfyUI。
+
+第一稿未通过定稿检查时，按缺失项重写一次。第二稿仍不合格时，结果标记为未定稿，调用方不得保存。
 
 ## 执行动作
 
@@ -13,10 +15,17 @@
 
 - `body`：章节正文
 - `chapter_title`：章节标题
-- `visual_style` / `genre` / `is_xianxia`：风格与题材上下文
+- `visual_style` / `visual_style_label` / `visual_style_prompt`：画面风格
+- `genre` / `genre_subcategory` / `is_xianxia` / `content_type`：题材和内容类型，会送进模型
+- `min_scenes`：场次下限，只防止长章被收成概述
 - `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
-- `content_type`：内容类型
 
 ## 出参说明
 
-- `output.script_data`：summary、characters（含完整 look）、scenes（含完整 summary）
+- `output.script_data.logline`：一句话故事
+- `output.script_data.summary`：这一章从哪件事到哪件事
+- `output.script_data.characters`：人名和外形。正文写了的外形按原文锁定；找不到人物描写时只写「正文未写」，不编造
+- `output.script_data.scenes`：`title`、`summary`、`purpose`
+- `output.script_data.omissions`：删掉的情节
+- `output.script_data.accepted`：定稿检查是否通过
+- `output.script_data.reject_reasons`：未通过时的原因，不引用原句

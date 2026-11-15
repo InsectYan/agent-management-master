@@ -2,7 +2,7 @@
 
 常规提示词技能已经写过一稿。本技能不代替那一稿，只在项目开启 AV 时再执行一次，把稿子收成最终画面提示词。positive_zh 里已经按时间片写好的对白原句要保留，不要删掉，也不要改词。
 
-每条 shot 上的 draft_positive_zh、draft_negative_zh、draft_production_note 是常规稿。人物、动作、时间、场景以常规稿和镜头描述为准，不要另写一套剧情。没有常规稿时，才按 description、dialogue、body 起草。
+每条 shot 上的 draft_positive_zh、draft_negative_zh、draft_production_note 是常规稿。人物、动作、时间、场景以常规稿和镜头描述为准，不要另写一套剧情。没有常规稿时，才按 description 和 dialogue 起草。不要回读章节原文。
 
 每一条 shot 是一段 8—15 秒视频。时间从 0.0 连续写到 duration_sec。片段数量跟常规稿：常规稿是一个长镜头就保持一个长镜头，常规稿分了多段就保持那些段。不要再切成 0—1 秒、1—2 秒，也不要为了凑成 3 段去改。各段时间首尾相接。多段而且需要连着拍时，后一段的承接写明承接上一片段。每个时间片必须先写场记行，再逐项换行，缺项写「无」：
 

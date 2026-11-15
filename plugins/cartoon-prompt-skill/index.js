@@ -85,6 +85,7 @@ module.exports = {
         action: 'draft',
         topic: isXianxia ? '修仙漫剧提示词' : '漫剧提示词',
         shots,
+        body: '',
         visual_style: routeInput.visual_style,
         visual_style_label: routeInput.visual_style_label,
         visual_style_prompt: routeInput.visual_style_prompt,

@@ -89,6 +89,7 @@ module.exports = {
         action: 'draft',
         topic: '收口 AV 视频提示词',
         shots,
+        body: '',
         av_mode: true,
         loop_system_prompt: `${loadBasePrompt()}\n\n${styleLine}`,
       };

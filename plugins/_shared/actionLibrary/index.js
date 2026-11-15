@@ -43,6 +43,7 @@ function shotText(shot) {
     shot.dialogue,
     shot.draft_positive_zh,
     shot.roster_text,
+    shot.asset_facts,
   ].map(item => String(item || '')).join('\n');
 }
 

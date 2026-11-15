@@ -62,6 +62,7 @@ module.exports = {
         'visual_style_prompt',
         'content_type',
         'av_mode',
+        'asset_facts',
       ],
       initialState: { thinking: '', reply: '', summary: '', prompts: [] },
       stateMerge: {

@@ -55,6 +55,7 @@ module.exports = {
         'is_xianxia',
         'content_type',
         'min_scenes',
+        'asset_facts',
       ],
       initialState: { thinking: '', reply: '', summary: '', repair_notes: '', script_data: {} },
       stateMerge: {

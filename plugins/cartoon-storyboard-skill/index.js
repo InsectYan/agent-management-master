@@ -59,6 +59,7 @@ module.exports = {
         'genre_subcategory',
         'is_xianxia',
         'content_type',
+        'asset_facts',
       ],
       initialState: { thinking: '', reply: '', summary: '', shots: [], omissions: [] },
       stateMerge: {

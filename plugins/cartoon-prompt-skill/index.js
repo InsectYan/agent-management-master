@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { buildPromptSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
+const { actionBlock } = require('../_shared/actionLibrary');
 const { parsePromptStep } = require('./lib/parseStep');
 
 function loadBasePrompt() {
@@ -92,7 +93,10 @@ module.exports = {
         genre: routeInput.genre,
         genre_subcategory: routeInput.genre_subcategory,
         is_xianxia: isXianxia,
-        loop_system_prompt: buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
+        loop_system_prompt: [
+          buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
+          actionBlock(shots),
+        ].filter(Boolean).join('\n\n'),
       };
     },
   },

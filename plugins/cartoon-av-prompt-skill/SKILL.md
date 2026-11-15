@@ -1,8 +1,8 @@
-# cartoon-av-prompt-skill — AV 视频提示词
+# cartoon-av-prompt-skill — AV 视频和静帧提示词
 
 ## 用途
 
-漫剧、短剧项目开启 AV 后，常规提示词技能先写一稿，本技能再调用一次做收口。不代替常规技能。收口时按时间片重排画面，每个时间片写光影、表演、动态、承接，并保留该片对白原句。人体和道具用看得见的外形，隐私部位用解剖名称，不用美化替代。人物、动作和时间以常规稿为准。
+漫剧、短剧项目开启 AV 后，常规提示词技能先写一稿，本技能再收口一次。动作和人体变化统一读公共动作知识库。双方都已写明满二十一岁并且命中亲密动作时，再引用男女体征知识库，用解剖名称写镜头里已经出现的部位。不满足就不引用，也不补原文没有的身体部位。
 
 不改 ComfyUI 节点图，不提交出图。
 
@@ -13,7 +13,6 @@
 
 ## 出参说明
 
-- `output.prompts`：positive_zh、negative_zh、production_note
-- 对白原句留在 positive_zh 的对应时间片里，production_note 再列一遍供核对
+- `output.prompts`：positive_zh 是视频，frame_start_zh 是首帧，frame_end_zh 是尾帧。negative_zh 一份共用。production_note 核对对白并写音效。
 
 重启 Agent 服务后新技能才会被加载。

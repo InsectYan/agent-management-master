@@ -9,7 +9,7 @@ const DEFAULT_DURATION_SEC = 10;
 function clampDurationSec(value, fallback = DEFAULT_DURATION_SEC) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return Math.min(15, Math.max(8, Math.round(n)));
+  return Math.min(12, Math.max(5, Math.round(n)));
 }
 
 function stripThink(text) {

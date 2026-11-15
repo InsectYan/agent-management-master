@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
+const { actionBlock, anatomyBlock } = require('../_shared/actionLibrary');
 
 function parseAvStep(rawText) {
   const parsed = parsePromptStep(rawText);
@@ -19,15 +20,15 @@ function parseAvStep(rawText) {
   };
 }
 
-function loadBasePrompt() {
-  return fs.readFileSync(path.join(__dirname, 'templates', 'loop-system.md'), 'utf8').trim();
+function loadText(name) {
+  return fs.readFileSync(path.join(__dirname, 'templates', name), 'utf8').trim();
 }
 
 module.exports = {
   name: 'cartoon-av-prompt-skill',
   project: 'cartoon',
-  version: '0.1.0',
-  description: '常规提示词写完后，为已开启 AV 的漫剧、短剧再收口一次画面提示词',
+  version: '0.3.0',
+  description: 'AV 项目收口视频和静帧。动作细节读取公共动作知识库。双方都已写明满二十一岁且命中亲密动作时，再引用男女体征知识库',
   scheme: 'loop',
   routes: [
     {
@@ -52,7 +53,7 @@ module.exports = {
       llmTimeoutMs: 21600000,
       localLlmTimeoutMs: 21600000,
       parseStepOutput: parseAvStep,
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","frame_start_zh":"【风格】【场记】【画面】【光影】【表演】","frame_end_zh":"【风格】【场记】【画面】【光影】【表演】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
         'shots',
         'body',
@@ -83,6 +84,7 @@ module.exports = {
         '画面风格：' + String(params.visual_style_label || params.visual_style || '未指定'),
         '风格描述：' + String(params.visual_style_prompt || ''),
       ].join('\n');
+      const library = actionBlock(shots);
       return {
         ...params,
         ...readProductionSource(params),
@@ -91,7 +93,12 @@ module.exports = {
         shots,
         body: '',
         av_mode: true,
-        loop_system_prompt: `${loadBasePrompt()}\n\n${styleLine}`,
+        loop_system_prompt: [
+          loadText('loop-system.md'),
+          styleLine,
+          library || '这一镜没有命中动作知识库。按场记写单人的起始姿态、肢体路径和结束姿态，不补亲密身体接触。',
+          anatomyBlock(shots) || '这一镜不引用男女体征知识库。不要补写镜头里没有的乳房、外阴、阴茎或肛门。',
+        ].join('\n\n'),
       };
     },
   },

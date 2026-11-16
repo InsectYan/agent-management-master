@@ -56,6 +56,29 @@ function readPack(file) {
   return fs.readFileSync(path.join(__dirname, 'packs', file), 'utf8').trim();
 }
 
+function phrasePairs() {
+  try {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, 'phraseMap.json'), 'utf8'));
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return [];
+    return Object.entries(data)
+      .map(([ from, to ]) => [ String(from || '').trim(), String(to || '').trim() ])
+      .filter(([ from, to ]) => from && to && from !== to)
+      .sort((left, right) => right[0].length - left[0].length);
+  } catch {
+    return [];
+  }
+}
+
+function applyPhraseMap(text) {
+  const source = String(text || '');
+  const pairs = phrasePairs();
+  if (!source || !pairs.length) return source;
+  return source.split(/(「[^」]*」)/).map(part => {
+    if (part.startsWith('「')) return part;
+    return pairs.reduce((next, [ from, to ]) => next.split(from).join(to), part);
+  }).join('');
+}
+
 function matchActions(text) {
   const adult = adultsConfirmed(text);
   return CATALOG.filter(item => item.pattern.test(text)).map(item => {
@@ -112,4 +135,5 @@ module.exports = {
   matchActions,
   actionBlock,
   anatomyBlock,
+  applyPhraseMap,
 };

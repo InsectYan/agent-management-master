@@ -1,5 +1,11 @@
 'use strict';
 
+const { applyPhraseMap } = require('../../_shared/actionLibrary');
+
+function phrase(text) {
+  return applyPhraseMap(String(text || '').trim());
+}
+
 function stripThink(text) {
   return String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -85,9 +91,9 @@ function parsePromptStep(rawText) {
     const positive = String(item?.positive_zh || item?.positive || '').replace(/\n*【后期与对白备注】[\s\S]*$/u, '').trim();
     return {
       index: Number.isInteger(item?.index) ? item.index : index,
-      positive_zh: positive,
-      frame_start_zh: String(item?.frame_start_zh || '').trim(),
-      frame_end_zh: String(item?.frame_end_zh || '').trim(),
+      positive_zh: phrase(positive),
+      frame_start_zh: phrase(item?.frame_start_zh),
+      frame_end_zh: phrase(item?.frame_end_zh),
       negative_zh: String(item?.negative_zh || '').trim(),
       production_note: String(item?.production_note || '').trim(),
     };
@@ -97,9 +103,9 @@ function parsePromptStep(rawText) {
     if (usablePositive(positive)) {
       prompts = [{
         index: 0,
-        positive_zh: positive,
-        frame_start_zh: readJsonStringField(rawText, 'frame_start_zh'),
-        frame_end_zh: readJsonStringField(rawText, 'frame_end_zh'),
+        positive_zh: phrase(positive),
+        frame_start_zh: phrase(readJsonStringField(rawText, 'frame_start_zh')),
+        frame_end_zh: phrase(readJsonStringField(rawText, 'frame_end_zh')),
         negative_zh: readJsonStringField(rawText, 'negative_zh'),
         production_note: readJsonStringField(rawText, 'production_note'),
       }];
@@ -107,8 +113,8 @@ function parsePromptStep(rawText) {
   } else {
     prompts = prompts.map(item => ({
       ...item,
-      frame_start_zh: item.frame_start_zh || readJsonStringField(rawText, 'frame_start_zh'),
-      frame_end_zh: item.frame_end_zh || readJsonStringField(rawText, 'frame_end_zh'),
+      frame_start_zh: item.frame_start_zh || phrase(readJsonStringField(rawText, 'frame_start_zh')),
+      frame_end_zh: item.frame_end_zh || phrase(readJsonStringField(rawText, 'frame_end_zh')),
     }));
   }
   const complete = prompts.some(item => usablePositive(item.positive_zh) && item.frame_start_zh && item.frame_end_zh);

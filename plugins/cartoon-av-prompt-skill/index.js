@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
-const { sexualAct, sexualBlock } = require('../_shared/actionLibrary');
+const { sexualBlock } = require('../_shared/actionLibrary');
 
 function parseAvStep(rawText) {
   const parsed = parsePromptStep(rawText);
@@ -87,14 +87,11 @@ module.exports = {
         err.status = 400;
         throw err;
       }
-      const confirmed = params.sexual_confirmed === true || params.sexual_confirmed === 'true' || sexualAct(shots);
       const styleLine = [
         '画面风格：' + String(params.visual_style_label || params.visual_style || '未指定'),
         '风格描述：' + String(params.visual_style_prompt || ''),
       ].join('\n');
-      const step = confirmed
-        ? '这一镜已确认描述性爱。只有系统提示里给出了模版，才把动作写到出场人物身上。'
-        : '这一镜没有描述性爱。不要调用性爱模版。';
+      const step = '项目已开启 AV，这一镜走收口。这一次只改写 positive_zh，不要写首帧和尾帧。只有系统提示里给出了模版，才把动作写到出场人物身上。';
       return {
         ...params,
         ...readProductionSource(params),
@@ -107,7 +104,7 @@ module.exports = {
           loadText('loop-system.md'),
           styleLine,
           step,
-          sexualBlock(shots, { confirmed }),
+          sexualBlock(shots, { confirmed: true }),
         ].join('\n\n'),
       };
     },

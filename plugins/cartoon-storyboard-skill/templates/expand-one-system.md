@@ -17,7 +17,7 @@
    - 光影、道具状态、承上与落点、动态活化。
 3. dialogue 有对白则逐字保留；画面描述禁用生物构造词。
 4. shot_sizes 为数组，多选本段景别。camera_moves 为数组，按时间顺序多选本段运镜。这两个数组是景别和运镜的种类，不是时间片段数；时间片按动作和对白切，可以比种类多很多。同一运镜可以连着好几个短段。时间轴必须逐项用到这些运镜，写明哪几秒用哪一种、镜头相对人物的距离和方向怎么变。
-5. 以 seed_shot 的 coverage/description 为剧情范围，不要扩成整场多段视频。若 seed 已带 shot_sizes / shot_size，优先沿用并在时间轴中展开。asset_facts 和 seed_shot.asset_facts 是这一镜出场人物的人物卡。年龄、性别、定性以卡片为准。不要把卡片里的脸型、发型、服装写进分镜。
+5. 以 seed_shot 的 coverage/description 为剧情范围，不要扩成整场多段视频。若 seed_shot.source_excerpt 有原文段，扩写不得超出这一段，也不要补写这一段之外的情节。若 seed 已带 shot_sizes / shot_size，优先沿用并在时间轴中展开。asset_facts 和 seed_shot.asset_facts 是这一镜出场人物的人物卡。年龄、性别、定性以卡片为准。不要把卡片里的脸型、发型、服装写进分镜。
 6. reply 说明本段秒数与段内切了几镜。
 
 JSON 形状：

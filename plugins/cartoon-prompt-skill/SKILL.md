@@ -21,6 +21,6 @@
 
 ## 出参说明
 
-- `output.prompts`：positive_zh 是视频提示词，frame_start_zh 是首帧，frame_end_zh 是尾帧。三句正向按这个顺序写。negative_zh 只一份，三段共用。production_note 核对对白并写音效。
+- `output.prompts`：一次只写一项。`prompt_part=positive` 写 positive_zh；`frame_start` 写首帧，可参考已写好的 positive_zh；`frame_end` 写尾帧。negative_zh 跟视频提示词一起写。`shot.source_excerpt` 是这一镜对应的原文段。
 
 重启 Agent 服务后新合同才会生效。

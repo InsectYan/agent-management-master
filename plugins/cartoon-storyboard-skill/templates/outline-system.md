@@ -25,6 +25,7 @@ description 与 dialogue 不设字数上限。对话密集时，一条镜头的�
 5. shot_sizes 为数组，多选本条会用到的景别。一镜到底可以只用一个。可选：极远景、远景、全景、中景、近景、特写、大特写。camera_moves 为数组，按时间顺序写本条运镜。长镜头可以只有一个运镜。可选：固定、推、急推、拉、急拉、摇、移、跟、升、降、甩、震颤、旋转。时间轴里的运镜必须和 camera_moves 对得上，并写清镜头相对人物怎么动。
 6. 若仍有场次没有自己的镜头，必须写入 omissions：target 写场次标题，reason 写明为什么没有单独镜头。没有漏场时 omissions 为空数组。
 7. reply 写明场次数、镜头条数，并确认每一场都有自己的镜头。
+8. source_paragraphs 是章节原文按段编号。每条 shot 用 source_indexes 写下这一镜用到的段号，从 1 开始，最多 3 段。多条镜头可以写同一个段号。不要把原文再抄进 description。对不上时 source_indexes 为空数组。
 
 JSON 形状：
-{"done":true,"continue":false,"thinking":"","reply":"","summary":"与 reply 相同","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["全景","中景","近景"],"camera_moves":["固定","推","摇"],"dialogue":""}],"omissions":[{"target":"","reason":""}]}
+{"done":true,"continue":false,"thinking":"","reply":"","summary":"与 reply 相同","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["全景","中景","近景"],"camera_moves":["固定","推","摇"],"dialogue":"","source_indexes":[1]}],"omissions":[{"target":"","reason":""}]}

@@ -98,6 +98,16 @@ function normalizeCameraMoves(value, fallback = '固定') {
   return list;
 }
 
+function sourceIndexes(value) {
+  const raw = Array.isArray(value) ? value : [];
+  const list = [];
+  raw.forEach(item => {
+    const n = Number(item);
+    if (Number.isInteger(n) && n > 0 && !list.includes(n)) list.push(n);
+  });
+  return list.slice(0, 3);
+}
+
 function parseStoryboardStep(rawText, meta = {}) {
   const parsed = tryParseJsonObject(rawText) || {};
   const expandOne = meta?.input?.expand_one === true
@@ -121,6 +131,7 @@ function parseStoryboardStep(rawText, meta = {}) {
       camera_moves: moves,
       camera_move: moves.join(','),
       dialogue: String(item?.dialogue || '').trim(),
+      source_indexes: sourceIndexes(item?.source_indexes),
     };
   }).filter(item => item.description);
   const reply = String(parsed.reply || parsed.summary || '').trim() || `拆出 ${shots.length} 段剧情`;

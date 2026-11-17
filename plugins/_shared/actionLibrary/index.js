@@ -135,14 +135,14 @@ function sexualBlock(shots, options = {}) {
   const who = characterLine(list);
   if (!adultsConfirmed(collectText(list))) {
     return [
-      '这一镜写了性爱，但没有确认双方都满二十一岁。不要调用性爱模版，不要补身体接触。',
+      '没有确认双方都满二十一岁，或出现未满二十一岁。不要调用性爱模版，不要补身体接触。',
       who,
       readPack('plain.md'),
     ].join('\n\n');
   }
   const extra = matchActions(collectText(list)).filter(item => item.allowed && item.id !== 'hold');
   const parts = [
-    '这一镜已确认是性爱互动。按模版写紧密的动作：起始姿态、肢体路径和结束姿态都落在点名的人身上。不要写成没有人名的慢动作，不要用比喻代替关节。',
+    '项目已开启 AV，这一镜走收口。按模版写紧密的动作：起始姿态、肢体路径和结束姿态都落在点名的人身上。不要写成没有人名的慢动作，不要用比喻代替关节。',
     who,
     fs.readFileSync(path.join(__dirname, 'body.md'), 'utf8').trim(),
     `【动作模版·握住、进入或停下】\n${readPack('hold.md')}`,

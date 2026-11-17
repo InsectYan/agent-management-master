@@ -92,7 +92,18 @@ function usablePositive(text) {
   return true;
 }
 
-function parsePromptStep(rawText) {
+function usableFrame(text) {
+  return usablePositive(text);
+}
+
+function promptPart(meta) {
+  const part = String(meta?.input?.prompt_part || '').trim();
+  if (part === 'positive' || part === 'frame_start' || part === 'frame_end' || part === 'negative') return part;
+  return '';
+}
+
+function parsePromptStep(rawText, meta = {}) {
+  const part = promptPart(meta);
   const parsed = tryParseJsonObject(rawText) || {};
   let prompts = Array.isArray(parsed.prompts) ? parsed.prompts.map((item, index) => {
     const positive = String(item?.positive_zh || item?.positive || '').replace(/\n*【后期与对白备注】[\s\S]*$/u, '').trim();
@@ -107,14 +118,21 @@ function parsePromptStep(rawText) {
   }).filter(item => item.positive_zh || item.frame_start_zh || item.frame_end_zh || item.negative_zh) : [];
   if (!prompts.some(item => usablePositive(item.positive_zh))) {
     const positive = readJsonStringField(rawText, 'positive_zh') || readJsonStringField(rawText, 'positive');
-    if (usablePositive(positive)) {
+    const frameStart = phrase(readJsonStringField(rawText, 'frame_start_zh'));
+    const frameEnd = phrase(readJsonStringField(rawText, 'frame_end_zh'));
+    const negative = readJsonStringField(rawText, 'negative_zh');
+    const recovered = usablePositive(positive)
+      || (part === 'frame_start' && usableFrame(frameStart))
+      || (part === 'frame_end' && usableFrame(frameEnd))
+      || (part === 'negative' && String(negative || '').trim());
+    if (recovered) {
       prompts = [{
         index: 0,
         positive_zh: phrase(positive),
-        frame_start_zh: phrase(readJsonStringField(rawText, 'frame_start_zh')),
-        frame_end_zh: phrase(readJsonStringField(rawText, 'frame_end_zh')),
-        negative_zh: readJsonStringField(rawText, 'negative_zh'),
-        production_note: readJsonStringField(rawText, 'production_note'),
+        frame_start_zh: frameStart || phrase((prompts[0] || {}).frame_start_zh),
+        frame_end_zh: frameEnd || phrase((prompts[0] || {}).frame_end_zh),
+        negative_zh: negative || String((prompts[0] || {}).negative_zh || '').trim(),
+        production_note: readJsonStringField(rawText, 'production_note') || String((prompts[0] || {}).production_note || '').trim(),
       }];
     }
   } else {
@@ -124,10 +142,24 @@ function parsePromptStep(rawText) {
       frame_end_zh: item.frame_end_zh || phrase(readJsonStringField(rawText, 'frame_end_zh')),
     }));
   }
-  const complete = prompts.some(item => usablePositive(item.positive_zh) && item.frame_start_zh && item.frame_end_zh);
+  const complete = part === 'positive'
+    ? prompts.some(item => usablePositive(item.positive_zh))
+    : part === 'frame_start'
+      ? prompts.some(item => usableFrame(item.frame_start_zh))
+      : part === 'frame_end'
+        ? prompts.some(item => usableFrame(item.frame_end_zh))
+        : part === 'negative'
+          ? prompts.some(item => String(item.negative_zh || '').trim())
+          : prompts.some(item => usablePositive(item.positive_zh) && item.frame_start_zh && item.frame_end_zh);
   const reply = complete
     ? (String(parsed.reply || parsed.summary || '').trim() || `写了 ${prompts.length} 条提示词`)
-    : '视频提示词还没写全。positive_zh、frame_start_zh、frame_end_zh 都要有内容，不能只回复已写入。';
+    : (part === 'frame_start'
+      ? '首帧提示词还没写全。frame_start_zh 要有内容。'
+      : part === 'frame_end'
+        ? '尾帧提示词还没写全。frame_end_zh 要有内容。'
+        : part === 'positive'
+          ? '视频提示词还没写全。positive_zh 要有内容。'
+          : '视频提示词还没写全。positive_zh、frame_start_zh、frame_end_zh 都要有内容，不能只回复已写入。');
   return {
     continue: !complete,
     done: complete,

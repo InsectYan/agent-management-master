@@ -59,6 +59,24 @@ const CATALOG = [
     defaultMaxTokens: 4096,
   },
   {
+    id: 'ollama-qwen25vl-heretic-q6k',
+    label: '本地 Ollama · qwen2.5-vl-heretic:72b Q6_K',
+    provider: 'ollama',
+    model: 'qwen2.5-vl-heretic:72b-q6_k',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 4096,
+  },
+  {
+    id: 'ollama-qwen25vl-heretic-q5km',
+    label: '本地 Ollama · qwen2.5-vl-heretic:72b Q5_K_M',
+    provider: 'ollama',
+    model: 'qwen2.5-vl-heretic:72b-q5_k_m',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 4096,
+  },
+  {
     id: 'openai-mini',
     label: 'OpenAI · gpt-4o-mini',
     provider: 'openai',
@@ -229,6 +247,8 @@ function resolveLlmProfile(profileId, appSettings) {
     'gpt-oss:120b': 'ollama-gpt-oss',
     'gpt-oss-heretic:120b': 'ollama-gpt-oss-heretic',
     'qwen2.5-vl-heretic:72b': 'ollama-qwen25vl-heretic',
+    'qwen2.5-vl-heretic:72b-q6_k': 'ollama-qwen25vl-heretic-q6k',
+    'qwen2.5-vl-heretic:72b-q5_k_m': 'ollama-qwen25vl-heretic-q5km',
   };
   const normalizedId = (profileId || '').trim();
   const id = aliases[normalizedId] || normalizedId || getPlatformDefaultProfileId(appSettings);

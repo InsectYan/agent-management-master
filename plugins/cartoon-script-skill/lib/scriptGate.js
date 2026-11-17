@@ -173,6 +173,8 @@ function collectIssues(script, body, minScenes) {
       issues.push(`第${nth}场没有可拍正文`);
     } else if (CAMERA_RE.test(summary)) {
       issues.push(`第${nth}场写成了景别或运镜，剧本只写能看见的动作，不替分镜调度镜头`);
+    } else if (!summary.includes('精髓') || !summary.includes('△')) {
+      issues.push(`第${nth}场要先写「精髓：」这场的变化，再用「△」逐条写下动作路径和物件，不要收成一句结果`);
     }
     if (!PURPOSES.has(textOf(scene?.purpose))) {
       issues.push(`第${nth}场要标明功能：推进剧情、揭示人物、制造冲突、埋设伏笔、释放信息`);

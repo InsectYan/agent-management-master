@@ -56,6 +56,7 @@ module.exports = {
         'content_type',
         'min_scenes',
         'asset_facts',
+        'av_mode',
       ],
       initialState: { thinking: '', reply: '', summary: '', repair_notes: '', script_data: {} },
       stateMerge: {

@@ -60,6 +60,7 @@ module.exports = {
         'genre_subcategory',
         'is_xianxia',
         'content_type',
+        'av_mode',
         'asset_facts',
       ],
       initialState: { thinking: '', reply: '', summary: '', shots: [], omissions: [] },

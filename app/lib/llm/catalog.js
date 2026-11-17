@@ -41,6 +41,24 @@ const CATALOG = [
     defaultMaxTokens: 4096,
   },
   {
+    id: 'ollama-gpt-oss-heretic',
+    label: '本地 Ollama · gpt-oss-heretic:120b',
+    provider: 'ollama',
+    model: 'gpt-oss-heretic:120b',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 4096,
+  },
+  {
+    id: 'ollama-qwen25vl-heretic',
+    label: '本地 Ollama · qwen2.5-vl-heretic:72b',
+    provider: 'ollama',
+    model: 'qwen2.5-vl-heretic:72b',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 4096,
+  },
+  {
     id: 'openai-mini',
     label: 'OpenAI · gpt-4o-mini',
     provider: 'openai',
@@ -209,6 +227,8 @@ function resolveLlmProfile(profileId, appSettings) {
     deepseek: 'deepseek-chat',
     'gpt-oss': 'ollama-gpt-oss',
     'gpt-oss:120b': 'ollama-gpt-oss',
+    'gpt-oss-heretic:120b': 'ollama-gpt-oss-heretic',
+    'qwen2.5-vl-heretic:72b': 'ollama-qwen25vl-heretic',
   };
   const normalizedId = (profileId || '').trim();
   const id = aliases[normalizedId] || normalizedId || getPlatformDefaultProfileId(appSettings);

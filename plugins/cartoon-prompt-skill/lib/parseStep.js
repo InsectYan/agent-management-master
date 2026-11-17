@@ -40,6 +40,13 @@ function unescapeJsonString(body) {
   });
 }
 
+function closesJsonString(text, quoteAt) {
+  let j = quoteAt + 1;
+  while (j < text.length && /\s/.test(text[j])) j += 1;
+  if (j >= text.length) return true;
+  return text[j] === ',' || text[j] === '}' || text[j] === ']';
+}
+
 function readOneJsonString(text, at, key) {
   let i = text.indexOf(':', at + key.length);
   if (i < 0) return '';
@@ -55,7 +62,7 @@ function readOneJsonString(text, at, key) {
       i += text[i + 1] ? 2 : 1;
       continue;
     }
-    if (ch === '"') break;
+    if (ch === '"' && closesJsonString(text, i)) break;
     raw += ch;
     i += 1;
   }

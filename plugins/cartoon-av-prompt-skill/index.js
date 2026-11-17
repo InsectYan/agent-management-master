@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
-const { actionBlock, anatomyBlock } = require('../_shared/actionLibrary');
+const { sexualAct, sexualBlock } = require('../_shared/actionLibrary');
 
 function parseAvStep(rawText) {
   const parsed = parsePromptStep(rawText);
@@ -81,11 +81,20 @@ module.exports = {
         err.status = 400;
         throw err;
       }
+      const av = params.av_mode === true || params.av_mode === 'true' || params.av_mode === 1;
+      if (!av) {
+        const err = new Error('项目没有勾选 AV');
+        err.status = 400;
+        throw err;
+      }
+      const confirmed = params.sexual_confirmed === true || params.sexual_confirmed === 'true' || sexualAct(shots);
       const styleLine = [
         '画面风格：' + String(params.visual_style_label || params.visual_style || '未指定'),
         '风格描述：' + String(params.visual_style_prompt || ''),
       ].join('\n');
-      const library = actionBlock(shots);
+      const step = confirmed
+        ? '这一镜已确认描述性爱。只有系统提示里给出了模版，才把动作写到出场人物身上。'
+        : '这一镜没有描述性爱。不要调用性爱模版。';
       return {
         ...params,
         ...readProductionSource(params),
@@ -97,8 +106,8 @@ module.exports = {
         loop_system_prompt: [
           loadText('loop-system.md'),
           styleLine,
-          library || '这一镜没有命中动作知识库。按场记写单人的起始姿态、肢体路径和结束姿态，不补亲密身体接触。',
-          anatomyBlock(shots) || '这一镜不引用男女体征知识库。不要补写镜头里没有的乳房、外阴、阴茎或肛门。',
+          step,
+          sexualBlock(shots, { confirmed }),
         ].join('\n\n'),
       };
     },

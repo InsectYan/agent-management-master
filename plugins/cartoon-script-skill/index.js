@@ -43,7 +43,7 @@ module.exports = {
           notes,
         ].join('\n');
       },
-      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","script_data":{"logline":"","summary":"","characters":[{"name":"","look":""}],"scenes":[{"title":"","summary":"","purpose":"推进剧情"}],"omissions":[{"target":"","reason":""}]}}',
+      jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","script_data":{"logline":"","summary":"","characters":[{"name":"","look":""}],"scenes":[{"title":"","summary":"","purpose":"推进剧情","wardrobe":"服装统一：\\n状态："}],"omissions":[{"target":"","reason":""}]}}',
       userContextFields: [
         'chapter_title',
         'body',

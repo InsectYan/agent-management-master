@@ -61,14 +61,27 @@ function readOneJsonString(text, at, key) {
   return unescapeJsonString(raw).trim();
 }
 
+function wardrobeText(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value !== 'object') return '';
+  const uniform = String(value.uniform || value.base || '').trim();
+  const state = String(value.state || value.status || '').trim();
+  const lines = [];
+  if (uniform) lines.push(uniform.startsWith('服装统一') ? uniform : `服装统一：${uniform}`);
+  if (state) lines.push(state.startsWith('状态') ? state : `状态：${state}`);
+  return lines.join('\n');
+}
+
 function sceneFrom(item) {
   const title = String(item?.title || item?.place || item?.location || '').trim();
   let summary = String(item?.summary || item?.content || item?.body || item?.text || '').trim();
   const dialogue = String(item?.dialogue || '').trim();
   if (dialogue && !summary.includes(dialogue)) summary = [ summary, dialogue ].filter(Boolean).join('\n');
   const purpose = String(item?.purpose || item?.function || '').trim();
+  const wardrobe = wardrobeText(item?.wardrobe);
   if (!title && !summary) return null;
-  return { title, summary, purpose };
+  return wardrobe ? { title, summary, purpose, wardrobe } : { title, summary, purpose };
 }
 
 function scenesFromList(list) {
@@ -129,7 +142,8 @@ function parseScriptStep(rawText, ctx = {}) {
     omissions: normalizeOmissions(data.omissions != null ? data.omissions : parsed.omissions),
   };
   const minScenes = Number(input.min_scenes) > 0 ? Math.round(Number(input.min_scenes)) : 1;
-  const settled = settleScript(draft, input.body, minScenes);
+  const avMode = input.av_mode === true || input.av_mode === 1 || input.av_mode === '1' || input.av_mode === 'true';
+  const settled = settleScript(draft, input.body, minScenes, { requireWardrobe: avMode });
   const issues = settled.issues;
   const step = Number(ctx.step) || 0;
   const maxSteps = Number(ctx.maxSteps) > 0 ? Number(ctx.maxSteps) : 1;

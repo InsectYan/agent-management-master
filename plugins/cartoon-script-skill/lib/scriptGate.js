@@ -149,7 +149,7 @@ function splitEmbeddedScenes(scenes) {
   return out;
 }
 
-function collectIssues(script, body, minScenes) {
+function collectIssues(script, body, minScenes, options = {}) {
   const issues = [];
   const data = script && typeof script === 'object' ? script : {};
   const scenes = Array.isArray(data.scenes) ? data.scenes : [];
@@ -178,6 +178,12 @@ function collectIssues(script, body, minScenes) {
     }
     if (!PURPOSES.has(textOf(scene?.purpose))) {
       issues.push(`第${nth}场要标明功能：推进剧情、揭示人物、制造冲突、埋设伏笔、释放信息`);
+    }
+    if (options.requireWardrobe) {
+      const wardrobe = textOf(scene?.wardrobe);
+      if (!wardrobe.includes('服装统一') || !/状态[:：]/.test(wardrobe)) {
+        issues.push(`第${nth}场要写服装状态：一行「服装统一：」本场每人一套衣服，一行「状态：」这一场衣服变成什么样`);
+      }
     }
   });
   if (!characters.length) {
@@ -302,7 +308,7 @@ function placeQuotes(scenes, body) {
   return next;
 }
 
-function settleScript(script, body, minScenes) {
+function settleScript(script, body, minScenes, options = {}) {
   const data = script && typeof script === 'object' ? script : {};
   const scenes = placeQuotes(splitEmbeddedScenes(data.scenes), body);
   const characters = (Array.isArray(data.characters) ? data.characters : []).map(item => {
@@ -313,7 +319,7 @@ function settleScript(script, body, minScenes) {
   const next = { ...data, scenes, characters };
   return {
     script: next,
-    issues: collectIssues(next, body, minScenes),
+    issues: collectIssues(next, body, minScenes, options),
   };
 }
 

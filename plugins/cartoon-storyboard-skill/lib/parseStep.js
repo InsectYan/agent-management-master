@@ -132,6 +132,7 @@ function parseStoryboardStep(rawText, meta = {}) {
       camera_move: moves.join(','),
       dialogue: String(item?.dialogue || '').trim(),
       source_indexes: sourceIndexes(item?.source_indexes),
+      wardrobe_state: String(item?.wardrobe_state || '').trim(),
     };
   }).filter(item => item.description);
   const reply = String(parsed.reply || parsed.summary || '').trim() || `拆出 ${shots.length} 段剧情`;

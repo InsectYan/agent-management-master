@@ -7,7 +7,7 @@
 视频和图片分开写。positive_zh 是视频。frame_start_zh 是首帧静帧。frame_end_zh 是尾帧静帧。negative_zh 只写一份。
 
 规则：
-1. prompts 与输入 shots 一一对应，index 从 0 开始，不要增删。
+1. prompts 与输入 shots 一一对应，index 从 0 开始，不要增删。shots[0].positive_zh 就是这一镜已经写好的常规稿，shots[0].description 是镜头描述。这两项在用户消息的 shots 里，有文字就必须改写 positive_zh，不要因为系统提示里只有风格和模版就当成没有输入，也不要返回空的 prompts。
 2. 景别用 shot_sizes，运镜用 camera_moves。一项运镜可以覆盖一整段。
 3. 若 shot.negative_only 为 true：positive_zh、frame_start_zh、frame_end_zh 原样抄回，只重写 negative_zh。
 4. 词语置换表在公共动作知识库的 phraseMap.json，由人添加。左边是要换掉的原句，右边是写进画面的说法。程序会在视频提示词、首帧、尾帧落库前按整句替换，长句优先。「」里的对白原句不替换。表里没有的说法保持原句，不要自行改成另一句。

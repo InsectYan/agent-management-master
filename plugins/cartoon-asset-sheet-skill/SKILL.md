@@ -16,7 +16,8 @@
 - `name`：人物或场景名称
 - `look`：剧本里的外形或空间说明
 - `note`：本章补充
-- `visual_style_label`：画面风格
+- `visual_style_label`：项目风格名称
+- `visual_style_prompt`：项目风格说明全文。人物设定图提示词开头要写上
 - `body`：章节正文节选
 
 ## 出参

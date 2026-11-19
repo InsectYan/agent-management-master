@@ -9,7 +9,7 @@ const DEFAULT_DURATION_SEC = 10;
 function clampDurationSec(value, fallback = DEFAULT_DURATION_SEC) {
   const n = Number(value);
   if (!Number.isFinite(n)) return fallback;
-  return Math.min(12, Math.max(5, Math.round(n)));
+  return Math.min(15, Math.max(5, Math.round(n)));
 }
 
 function stripThink(text) {
@@ -98,6 +98,62 @@ function normalizeCameraMoves(value, fallback = '固定') {
   return list;
 }
 
+function objectEnd(text, open) {
+  let depth = 0;
+  let quote = false;
+  let escape = false;
+  for (let i = open; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quote) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch === '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch === '"') quote = false;
+      continue;
+    }
+    if (ch === '"') {
+      quote = true;
+      continue;
+    }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+/** 模型写到字数上限时 JSON 会被截断。把已经闭合的镜头对象收回来。 */
+function salvageShotItems(text) {
+  const raw = stripThink(text);
+  const key = raw.search(/"shots"\s*:/);
+  if (key < 0) return [];
+  const start = raw.indexOf('[', key);
+  if (start < 0) return [];
+  const shots = [];
+  let i = start + 1;
+  while (i < raw.length) {
+    while (i < raw.length && ' \n\r\t,'.includes(raw[i])) i += 1;
+    if (i >= raw.length || raw[i] === ']') break;
+    if (raw[i] !== '{') break;
+    const end = objectEnd(raw, i);
+    if (end < 0) break;
+    try {
+      shots.push(JSON.parse(raw.slice(i, end + 1)));
+    } catch {
+      break;
+    }
+    i = end + 1;
+  }
+  return shots;
+}
+
 function sourceIndexes(value) {
   const raw = Array.isArray(value) ? value : [];
   const list = [];
@@ -105,7 +161,7 @@ function sourceIndexes(value) {
     const n = Number(item);
     if (Number.isInteger(n) && n > 0 && !list.includes(n)) list.push(n);
   });
-  return list.slice(0, 3);
+  return list;
 }
 
 function parseStoryboardStep(rawText, meta = {}) {
@@ -115,7 +171,8 @@ function parseStoryboardStep(rawText, meta = {}) {
     || meta?.input?.expand_one === 1
     || meta?.input?.expand_one === '1';
   const seedDuration = clampDurationSec(meta?.input?.seed_shot?.duration_sec, DEFAULT_DURATION_SEC);
-  const sourceShots = Array.isArray(parsed.shots) ? parsed.shots : [];
+  let sourceShots = Array.isArray(parsed.shots) ? parsed.shots : [];
+  if (!sourceShots.length && !expandOne) sourceShots = salvageShotItems(rawText);
   const shots = (expandOne ? sourceShots.slice(0, 1) : sourceShots).map(item => {
     const sizes = normalizeShotSizes(
       item?.shot_sizes != null ? item.shot_sizes : item?.shot_size,
@@ -123,7 +180,7 @@ function parseStoryboardStep(rawText, meta = {}) {
     const moves = normalizeCameraMoves(item?.camera_moves != null ? item.camera_moves : item?.camera_move);
     const sceneIndex = Number(item?.scene_index);
     return {
-      description: String(item?.description || '').trim(),
+      description: String(item?.description || item?.coverage || item?.summary || item?.text || '').trim(),
       scene_index: Number.isInteger(sceneIndex) && sceneIndex > 0 ? sceneIndex : undefined,
       duration_sec: clampDurationSec(item?.duration_sec, expandOne ? seedDuration : DEFAULT_DURATION_SEC),
       shot_size: sizes.join(','),

@@ -80,8 +80,12 @@ function sceneFrom(item) {
   if (dialogue && !summary.includes(dialogue)) summary = [ summary, dialogue ].filter(Boolean).join('\n');
   const purpose = String(item?.purpose || item?.function || '').trim();
   const wardrobe = wardrobeText(item?.wardrobe);
+  const sourceStart = String(item?.source_start || item?.opening || '').trim().slice(0, 240);
+  const sourceEnd = String(item?.source_end || item?.closing || '').trim().slice(0, 240);
   if (!title && !summary) return null;
-  return wardrobe ? { title, summary, purpose, wardrobe } : { title, summary, purpose };
+  const scene = { title, summary, purpose, source_start: sourceStart, source_end: sourceEnd };
+  if (wardrobe) scene.wardrobe = wardrobe;
+  return scene;
 }
 
 function scenesFromList(list) {

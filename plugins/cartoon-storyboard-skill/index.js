@@ -47,6 +47,7 @@ module.exports = {
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["全景","中景","近景"],"camera_moves":["固定","推","摇"],"dialogue":""}],"omissions":[{"target":"","reason":""}]}',
       userContextFields: [
         'script_data',
+        'scene_spans',
         'source_paragraphs',
         'body',
         'seed_shot',
@@ -121,6 +122,7 @@ module.exports = {
         body,
         seed_shot: params.seed_shot || null,
         source_paragraphs: outlineOnly && Array.isArray(params.source_paragraphs) ? params.source_paragraphs : undefined,
+        scene_spans: outlineOnly && Array.isArray(params.scene_spans) ? params.scene_spans : undefined,
         loop_json_schema_hint: outlineOnly
           ? '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","shots":[{"description":"","scene_index":1,"duration_sec":10,"shot_sizes":["中景"],"camera_moves":["固定"],"dialogue":"","source_indexes":[1]}],"omissions":[]}'
           : undefined,

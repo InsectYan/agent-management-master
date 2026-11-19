@@ -32,7 +32,7 @@ module.exports = {
       localLlmTimeoutMs: 21600000,
       parseStepOutput: parseProfileStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","characters":[{"name":"","tone":"正向","tone_words":"","slots":{"性别":{"text":"男","source":"原文","evidence":"","basis":""},"年龄":{"text":"","source":"轻推","evidence":"","basis":""}},"chapter_costume":""}],"scenes":[{"name":"","slots":{"空间":{"text":"室内","source":"原文","evidence":"","basis":""}}}]}',
-      userContextFields: [ 'chapter_title', 'body', 'known_assets', 'visual_style_label' ],
+      userContextFields: [ 'chapter_title', 'body', 'script_cast', 'known_assets', 'visual_style_label', 'av_mode' ],
       initialState: { thinking: '', reply: '', summary: '', characters: [], scenes: [] },
       stateMerge: {
         thinking: 'replace',
@@ -57,7 +57,9 @@ module.exports = {
         chapter_title: String(params.chapter_title || '').trim().slice(0, 80),
         body: body.slice(0, 12000),
         known_assets: String(params.known_assets || '').slice(0, 6000),
+        script_cast: String(params.script_cast || '').slice(0, 2000),
         visual_style_label: String(params.visual_style_label || '').slice(0, 80),
+        av_mode: params.av_mode === true || params.av_mode === 1 || params.av_mode === '1' || params.av_mode === 'true',
       };
     },
   },

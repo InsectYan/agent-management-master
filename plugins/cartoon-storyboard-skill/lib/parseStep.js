@@ -12,6 +12,23 @@ function clampDurationSec(value, fallback = DEFAULT_DURATION_SEC) {
   return Math.min(15, Math.max(5, Math.round(n)));
 }
 
+function speechSeconds(dialogue) {
+  const chars = String(dialogue || '').replace(/\s+/g, '').replace(/[「」“”‘’]/g, '').length;
+  if (!chars) return 0;
+  return Math.ceil(chars / 4);
+}
+
+function fitDurationSec(proposed, dialogue, fallback = DEFAULT_DURATION_SEC) {
+  const n = Number(proposed);
+  const raw = Number.isFinite(n) ? Math.round(n) : fallback;
+  const video = clampDurationSec(raw, fallback);
+  const speech = speechSeconds(dialogue);
+  if (!speech) return video;
+  const withSpeech = Math.max(video, speech);
+  const chosen = raw > video ? Math.max(withSpeech, raw) : withSpeech;
+  return Math.min(30, chosen);
+}
+
 function stripThink(text) {
   return String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -170,7 +187,11 @@ function parseStoryboardStep(rawText, meta = {}) {
     || meta?.input?.expand_one === 'true'
     || meta?.input?.expand_one === 1
     || meta?.input?.expand_one === '1';
-  const seedDuration = clampDurationSec(meta?.input?.seed_shot?.duration_sec, DEFAULT_DURATION_SEC);
+  const seedDuration = fitDurationSec(
+    meta?.input?.seed_shot?.duration_sec,
+    meta?.input?.seed_shot?.dialogue,
+    DEFAULT_DURATION_SEC,
+  );
   let sourceShots = Array.isArray(parsed.shots) ? parsed.shots : [];
   if (!sourceShots.length && !expandOne) sourceShots = salvageShotItems(rawText);
   const shots = (expandOne ? sourceShots.slice(0, 1) : sourceShots).map(item => {
@@ -182,7 +203,7 @@ function parseStoryboardStep(rawText, meta = {}) {
     return {
       description: String(item?.description || item?.coverage || item?.summary || item?.text || '').trim(),
       scene_index: Number.isInteger(sceneIndex) && sceneIndex > 0 ? sceneIndex : undefined,
-      duration_sec: clampDurationSec(item?.duration_sec, expandOne ? seedDuration : DEFAULT_DURATION_SEC),
+      duration_sec: fitDurationSec(item?.duration_sec, item?.dialogue, expandOne ? seedDuration : DEFAULT_DURATION_SEC),
       shot_size: sizes.join(','),
       shot_sizes: sizes,
       camera_moves: moves,

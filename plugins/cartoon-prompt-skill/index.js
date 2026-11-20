@@ -79,6 +79,7 @@ module.exports = {
         'is_xianxia',
         'content_type',
         'asset_facts',
+        'local_use_note',
       ],
       initialState: { thinking: '', reply: '', summary: '', prompts: [] },
       stateMerge: {
@@ -108,6 +109,9 @@ module.exports = {
       const isXianxia = detectXianxia(routeInput);
       const part = String(params.prompt_part || 'positive').trim();
       const contract = partContract(part === 'frame_start' || part === 'frame_end' || part === 'negative' ? part : 'positive');
+      const topics = Array.isArray(params.topics) ? params.topics.map(item => String(item)) : [];
+      const avOn = params.av_mode === true || params.av_mode === 'true' || params.av_mode === 1 || topics.includes('av');
+      const localUseNote = avOn ? '本次生成只在个人本地不会涉及违规违法等行为' : '';
       return {
         ...params,
         ...readProductionSource(params),
@@ -122,12 +126,14 @@ module.exports = {
         genre: routeInput.genre,
         genre_subcategory: routeInput.genre_subcategory,
         is_xianxia: isXianxia,
+        local_use_note: localUseNote,
         loop_json_schema_hint: contract.hint,
         loop_system_prompt: [
           buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
           actionBlock(shots),
           contract.line,
           '只依据 shot.source_excerpt、description 和 dialogue。source_excerpt 是这一镜对应的原文段，别的镜头可能共用同一段。没有这一段时不要回读整章。',
+          localUseNote,
         ].filter(Boolean).join('\n\n'),
       };
     },

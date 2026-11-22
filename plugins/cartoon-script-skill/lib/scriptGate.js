@@ -1,8 +1,7 @@
 'use strict';
 
-const PURPOSES = new Set([ '推进剧情', '揭示人物', '制造冲突', '埋设伏笔', '释放信息' ]);
 const TITLE_RE = /^(内|外)(?:景)?·[^·/／、,，]{1,24}·(晨|日|昏|夜)$/;
-const CAMERA_RE = /特写|近景|中景|全景|远景|大特写|极远景|内景|外景|运镜|推镜|拉镜|摇镜|跟镜|镜头/;
+const ENV_RE = /室内|室外|屋内|屋外|房间|卧室|客厅|大厅|厨房|浴室|浴池|院子|庭院|山林|森林|街道|巷|宫殿|大殿|洞府|客栈|船上|车内|野外|沙漠|海边|湖|河|山|城|村|店|馆|府|楼|阁|亭|园|池|林|桥|殿|宫|营帐|帐篷|洞穴|地牢|牢房|教室|办公室|医院|酒店|宾馆|餐厅|酒吧|舞台|广场|公园|校园|宿舍|车厢|机舱|甲板|码头|港口|机场|车站|郊外|田野|草地|雪地/;
 const MARK_RE = /【\s*场景\s*[0-9０-９一二三四五六七八九十百千]+\s*[：:][^】]{0,30}】/g;
 const QUOTE_RES = [
   /「([^」]{2,80})」/g,
@@ -154,9 +153,6 @@ function collectIssues(script, body, _minScenes, options = {}) {
   const data = script && typeof script === 'object' ? script : {};
   const scenes = Array.isArray(data.scenes) ? data.scenes : [];
   const characters = Array.isArray(data.characters) ? data.characters : [];
-  if (!textOf(data.logline)) {
-    issues.push('章首要有一句话故事：谁想要什么、被什么挡住、要付什么代价');
-  }
   if (!scenes.length) {
     issues.push('没有可拍场次');
     return issues;
@@ -168,23 +164,32 @@ function collectIssues(script, body, _minScenes, options = {}) {
     if (!TITLE_RE.test(title)) {
       issues.push(`第${nth}场标题要写成「内·地点·日」或「外·地点·夜」，只保留一个地点`);
     }
-    if (!summary) {
-      issues.push(`第${nth}场没有这场故事的摘要`);
-    } else if (CAMERA_RE.test(summary)) {
-      issues.push(`第${nth}场写成了景别或运镜，场次只写这段故事，不替分镜调度镜头`);
-    }
-    if (!PURPOSES.has(textOf(scene?.purpose))) {
-      issues.push(`第${nth}场要标明功能：推进剧情、揭示人物、制造冲突、埋设伏笔、释放信息`);
-    }
+    if (!summary) issues.push(`第${nth}场没有这场故事的摘要`);
   });
-  if (!characters.length) {
-    issues.push('要列出本章实际出场的人物');
+  if (!namedPeople(characters) && !hasSetting(data)) {
+    issues.push('没有出场人物，也没有室内、室外或场所描写');
   }
-  characters.forEach(item => {
-    const name = textOf(item?.name) || '未命名人物';
-    lookIssues(name, item?.look, body).forEach(issue => issues.push(issue));
-  });
+  const omissions = Array.isArray(data.omissions) ? data.omissions : [];
+  if (omissions.some(item => textOf(item?.reason))) {
+    issues.push('不能把情节写进 omissions 删掉。重复的段落也要留在某一场，不能因为已经演过就整场不写');
+  }
   return issues;
+}
+
+function namedPeople(characters) {
+  return characters.some(item => textOf(item?.name));
+}
+
+function hasSetting(data) {
+  const places = Array.isArray(data.places) ? data.places : [];
+  if (places.some(item => textOf(item?.name || item))) return true;
+  const scenes = Array.isArray(data.scenes) ? data.scenes : [];
+  return scenes.some(scene => {
+    const title = textOf(scene?.title);
+    const summary = textOf(scene?.summary);
+    if (TITLE_RE.test(title)) return true;
+    return ENV_RE.test(`${title}\n${summary}`);
+  });
 }
 
 function sentenceAt(source, at) {

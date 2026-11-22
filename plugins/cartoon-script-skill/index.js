@@ -35,9 +35,16 @@ module.exports = {
       buildStepDirective({ step, state }) {
         const notes = String(state?.repair_notes || '').trim();
         if (!step || !notes) return '';
+        if (notes.includes('被截断')) {
+          return [
+            '上一稿的 JSON 在写完前被截断。整份剧本重新输出成一个完整 JSON。',
+            '已经写过的场次也要重写进去，不能只交后半段，也不能沿用半截结果。',
+            notes,
+          ].join('\n');
+        }
         return [
           '上一稿没有通过定稿检查。按下面每一条重写整份剧本。',
-          '已经写对的对白原句保留。正文写了的外形按短句补进 look，动作和情节留在场次里。找不到人物描写时 look 只写「正文未写」。',
+          '已经写对的对白原句保留。',
           '不要把景别、运镜写进场次正文。',
           notes,
         ].join('\n');

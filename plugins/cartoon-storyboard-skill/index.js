@@ -65,6 +65,7 @@ module.exports = {
         'av_mode',
         'asset_facts',
         'prev_shot',
+        'repair_note',
       ],
       initialState: { thinking: '', reply: '', summary: '', shots: [], omissions: [] },
       stateMerge: {
@@ -86,7 +87,7 @@ module.exports = {
       }
       const outlineOnly = truthy(params.outline_only);
       const expandOne = truthy(params.expand_one);
-      const body = (outlineOnly || expandOne) ? '' : String(params.body || '');
+      const body = expandOne ? '' : String(params.body || '');
       const routeInput = {
         ...params,
         body,
@@ -150,7 +151,12 @@ module.exports = {
         genre: routeInput.genre,
         genre_subcategory: routeInput.genre_subcategory,
         is_xianxia: isXianxia,
-        loop_system_prompt: loopSystemPrompt,
+        loop_system_prompt: [
+          loopSystemPrompt,
+          String(params.repair_note || '').trim()
+            ? `上一稿被退回：\n${String(params.repair_note).trim()}`
+            : '',
+        ].filter(Boolean).join('\n\n'),
       };
     },
   },

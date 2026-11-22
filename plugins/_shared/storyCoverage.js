@@ -18,7 +18,8 @@ function normalizeOmissions(value) {
     const target = String(item?.target || item?.title || '').trim();
     const reason = String(item?.reason || '').trim();
     if (!reason) continue;
-    list.push({ target, reason });
+    const notice = String(item?.notice || '').trim();
+    list.push(notice ? { target, reason, notice } : { target, reason });
   }
   return list;
 }

@@ -73,12 +73,17 @@ function wardrobeText(value) {
   return lines.join('\n');
 }
 
+function purposeText(value) {
+  const list = Array.isArray(value) ? value : [ value ];
+  return list.map(item => String(item || '').trim()).filter(Boolean).join('、');
+}
+
 function sceneFrom(item) {
   const title = String(item?.title || item?.place || item?.location || '').trim();
   let summary = String(item?.summary || item?.content || item?.body || item?.text || '').trim();
   const dialogue = String(item?.dialogue || '').trim();
   if (dialogue && !summary.includes(dialogue)) summary = [ summary, dialogue ].filter(Boolean).join('\n');
-  const purpose = String(item?.purpose || item?.function || '').trim();
+  const purpose = purposeText(item?.purpose != null ? item.purpose : item?.function);
   const wardrobe = wardrobeText(item?.wardrobe);
   const sourceStart = String(item?.source_start || item?.opening || '').trim().slice(0, 240);
   const sourceEnd = String(item?.source_end || item?.closing || '').trim().slice(0, 240);
@@ -128,7 +133,8 @@ function scriptDataOf(parsed) {
 }
 
 function parseScriptStep(rawText, ctx = {}) {
-  const parsed = tryParseJsonObject(rawText) || {};
+  const closed = tryParseJsonObject(rawText);
+  const parsed = closed || {};
   const data = scriptDataOf(parsed);
   const input = ctx.input || {};
   const characters = Array.isArray(data.characters) ? data.characters.map(item => ({
@@ -137,6 +143,7 @@ function parseScriptStep(rawText, ctx = {}) {
   })).filter(item => item.name) : [];
   let scenes = scenesFromList(data.scenes);
   if (!scenes.length) scenes = scenesFromList(parsed.scenes);
+  const truncated = !closed && (scenes.length > 0 || salvageScenes(rawText).length > 0 || /"scenes"\s*:/.test(String(rawText || '')));
   if (!scenes.length) scenes = salvageScenes(rawText);
   const draft = {
     logline: String(data.logline || data.one_line || '').trim(),
@@ -147,7 +154,10 @@ function parseScriptStep(rawText, ctx = {}) {
   };
   const avMode = input.av_mode === true || input.av_mode === 1 || input.av_mode === '1' || input.av_mode === 'true';
   const settled = settleScript(draft, input.body, 0, { requireWardrobe: avMode });
-  const issues = settled.issues;
+  const issues = settled.issues.slice();
+  if (truncated) {
+    issues.unshift('回答在写完前被截断。请把这一章的全部场次重新写成一个完整 JSON，已经写出的场次也要重写进去');
+  }
   const step = Number(ctx.step) || 0;
   const maxSteps = Number(ctx.maxSteps) > 0 ? Number(ctx.maxSteps) : 1;
   const canRepair = issues.length > 0 && step < maxSteps - 1;
@@ -173,6 +183,7 @@ function parseScriptStep(rawText, ctx = {}) {
       summary: settled.script.summary || reply,
       accepted: issues.length === 0,
       reject_reasons: issues,
+      truncated,
     },
   };
 }

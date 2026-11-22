@@ -146,29 +146,72 @@ function objectEnd(text, open) {
   return -1;
 }
 
-/** 模型写到字数上限时 JSON 会被截断。把已经闭合的镜头对象收回来。 */
+function readLooseString(text, key) {
+  const token = `"${key}"`;
+  const at = text.indexOf(token);
+  if (at < 0) return '';
+  let i = text.indexOf(':', at + token.length);
+  if (i < 0) return '';
+  i += 1;
+  while (i < text.length && /\s/.test(text[i])) i += 1;
+  if (text[i] !== '"') return '';
+  i += 1;
+  let raw = '';
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') {
+      raw += text[i + 1] || '';
+      i += text[i + 1] ? 2 : 1;
+      continue;
+    }
+    if (ch === '"') break;
+    raw += ch;
+    i += 1;
+  }
+  return raw.trim();
+}
+
+function clipFragment(fragment) {
+  const source = String(fragment || '');
+  const text = [
+    readLooseString(source, 'description'),
+    readLooseString(source, 'coverage'),
+    readLooseString(source, 'summary'),
+    readLooseString(source, 'dialogue'),
+  ].find(Boolean) || source.replace(/\s+/g, ' ').trim();
+  const clip = text.replace(/\s+/g, ' ').trim();
+  if (!clip) return '后半段没有写完';
+  return clip.length > 80 ? `${clip.slice(0, 80)}…` : clip;
+}
+
+/** 模型写到字数上限时 JSON 会被截断。闭合的镜头留下，没闭合的那条记下来。 */
 function salvageShotItems(text) {
   const raw = stripThink(text);
   const key = raw.search(/"shots"\s*:/);
-  if (key < 0) return [];
+  if (key < 0) return { shots: [], dropped: '' };
   const start = raw.indexOf('[', key);
-  if (start < 0) return [];
+  if (start < 0) return { shots: [], dropped: '' };
   const shots = [];
+  let dropped = '';
   let i = start + 1;
   while (i < raw.length) {
     while (i < raw.length && ' \n\r\t,'.includes(raw[i])) i += 1;
     if (i >= raw.length || raw[i] === ']') break;
     if (raw[i] !== '{') break;
     const end = objectEnd(raw, i);
-    if (end < 0) break;
+    if (end < 0) {
+      dropped = raw.slice(i);
+      break;
+    }
     try {
       shots.push(JSON.parse(raw.slice(i, end + 1)));
     } catch {
+      dropped = raw.slice(i);
       break;
     }
     i = end + 1;
   }
-  return shots;
+  return { shots, dropped };
 }
 
 function sourceIndexes(value) {
@@ -182,7 +225,8 @@ function sourceIndexes(value) {
 }
 
 function parseStoryboardStep(rawText, meta = {}) {
-  const parsed = tryParseJsonObject(rawText) || {};
+  const closed = tryParseJsonObject(rawText);
+  const parsed = closed || {};
   const expandOne = meta?.input?.expand_one === true
     || meta?.input?.expand_one === 'true'
     || meta?.input?.expand_one === 1
@@ -193,7 +237,12 @@ function parseStoryboardStep(rawText, meta = {}) {
     DEFAULT_DURATION_SEC,
   );
   let sourceShots = Array.isArray(parsed.shots) ? parsed.shots : [];
-  if (!sourceShots.length && !expandOne) sourceShots = salvageShotItems(rawText);
+  let droppedFragment = '';
+  if (!closed && !expandOne) {
+    const salvaged = salvageShotItems(rawText);
+    if (!sourceShots.length) sourceShots = salvaged.shots;
+    droppedFragment = salvaged.dropped;
+  }
   const shots = (expandOne ? sourceShots.slice(0, 1) : sourceShots).map(item => {
     const sizes = normalizeShotSizes(
       item?.shot_sizes != null ? item.shot_sizes : item?.shot_size,
@@ -214,6 +263,14 @@ function parseStoryboardStep(rawText, meta = {}) {
     };
   }).filter(item => item.description);
   const reply = String(parsed.reply || parsed.summary || '').trim() || `拆出 ${shots.length} 段剧情`;
+  const omissions = normalizeOmissions(parsed.omissions);
+  if (droppedFragment) {
+    omissions.push({
+      target: '分镜',
+      notice: '分镜删减',
+      reason: `回答写到一半被截断，最后一条没闭合的镜头没有保存：${clipFragment(droppedFragment)}`,
+    });
+  }
   return {
     continue: false,
     done: true,
@@ -221,7 +278,7 @@ function parseStoryboardStep(rawText, meta = {}) {
     reply,
     summary: reply,
     shots,
-    omissions: normalizeOmissions(parsed.omissions),
+    omissions,
   };
 }
 

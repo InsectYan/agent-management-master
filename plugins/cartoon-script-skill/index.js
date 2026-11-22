@@ -1,7 +1,6 @@
 'use strict';
 
 const { readProductionSource } = require('../_shared/productionSource');
-const { minStoryUnits } = require('../_shared/storyCoverage');
 const { parseScriptStep } = require('./lib/parseStep');
 
 module.exports = {
@@ -48,7 +47,6 @@ module.exports = {
         'chapter_title',
         'body',
         'content_type',
-        'min_scenes',
         'asset_facts',
         'av_mode',
       ],
@@ -70,15 +68,14 @@ module.exports = {
         err.status = 400;
         throw err;
       }
-      const minScenes = Number(params.min_scenes) > 0 ? Math.round(Number(params.min_scenes)) : minStoryUnits(body.length);
       const next = {
         ...params,
         ...readProductionSource(params),
         action: 'draft',
         topic: String(params.chapter_title || '未命名章节').slice(0, 80),
         body,
-        min_scenes: minScenes,
       };
+      delete next.min_scenes;
       [ 'visual_style', 'visual_style_label', 'visual_style_prompt', 'genre', 'genre_subcategory', 'is_xianxia' ].forEach(key => {
         delete next[key];
       });

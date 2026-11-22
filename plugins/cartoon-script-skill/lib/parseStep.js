@@ -145,9 +145,8 @@ function parseScriptStep(rawText, ctx = {}) {
     scenes,
     omissions: normalizeOmissions(data.omissions != null ? data.omissions : parsed.omissions),
   };
-  const minScenes = Number(input.min_scenes) > 0 ? Math.round(Number(input.min_scenes)) : 1;
   const avMode = input.av_mode === true || input.av_mode === 1 || input.av_mode === '1' || input.av_mode === 'true';
-  const settled = settleScript(draft, input.body, minScenes, { requireWardrobe: avMode });
+  const settled = settleScript(draft, input.body, 0, { requireWardrobe: avMode });
   const issues = settled.issues;
   const step = Number(ctx.step) || 0;
   const maxSteps = Number(ctx.maxSteps) > 0 ? Number(ctx.maxSteps) : 1;

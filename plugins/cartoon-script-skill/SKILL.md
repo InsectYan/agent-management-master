@@ -17,7 +17,7 @@
 - `chapter_title`：章节标题
 - `content_type`：内容类型。短剧会要求开场进入冲突、收场留钩子
 - `av_mode`：项目是否勾选 AV
-- `min_scenes`：场次下限，只防止长章被收成概述
+- 场次不设最少条数。同一地点、时间不中断、要做的事没换，就留在一场里
 - 画面风格、题材和是否修仙不送进这一步。场次只按正文拆
 - `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
 

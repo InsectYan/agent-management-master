@@ -149,7 +149,7 @@ function splitEmbeddedScenes(scenes) {
   return out;
 }
 
-function collectIssues(script, body, minScenes, options = {}) {
+function collectIssues(script, body, _minScenes, options = {}) {
   const issues = [];
   const data = script && typeof script === 'object' ? script : {};
   const scenes = Array.isArray(data.scenes) ? data.scenes : [];
@@ -184,11 +184,6 @@ function collectIssues(script, body, minScenes, options = {}) {
     const name = textOf(item?.name) || '未命名人物';
     lookIssues(name, item?.look, body).forEach(issue => issues.push(issue));
   });
-  const floor = Number(minScenes) > 0 ? Math.round(Number(minScenes)) : 1;
-  const gap = floor - scenes.length;
-  if (gap > 0) {
-    issues.push(`场次 ${scenes.length} 低于下限 ${floor}。少掉的情节另开一场，不要用 omissions 凑数`);
-  }
   return issues;
 }
 

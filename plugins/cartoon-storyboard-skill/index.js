@@ -142,7 +142,7 @@ module.exports = {
         min_shots: outlineOnly
           ? (Number(params.min_shots) > 0
             ? Math.round(Number(params.min_shots))
-            : Math.max(minStoryUnits(body.length), Array.isArray(script.scenes) ? script.scenes.length : 1))
+            : Math.max(minStoryUnits(body.length), 1))
           : undefined,
         visual_style: routeInput.visual_style,
         visual_style_label: routeInput.visual_style_label,

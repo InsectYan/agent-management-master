@@ -132,7 +132,10 @@ module.exports = {
           buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
           actionBlock(shots),
           contract.line,
-          '只依据 shot.source_excerpt、description 和 dialogue。source_excerpt 是这一镜对应的原文段，别的镜头可能共用同一段。没有这一段时不要回读整章。',
+          '只依据 shot.source_excerpt、description 和 dialogue 写这一镜。source_excerpt 是这一镜对应的原文段，别的镜头可能共用同一段。没有这一段时不要回读整章。',
+          shots.some(item => item?.prev_shot)
+            ? 'shot.prev_shot 是上一镜已经拍过的剧情和提示词，只用来核对这一镜从哪里接上。不要把上一镜的情节再开一遍，也不要跳过这一镜原文里还没拍的句子。'
+            : '',
           localUseNote,
         ].filter(Boolean).join('\n\n'),
       };

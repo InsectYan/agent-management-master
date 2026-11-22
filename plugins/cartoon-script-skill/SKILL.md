@@ -15,9 +15,10 @@
 
 - `body`：章节正文
 - `chapter_title`：章节标题
-- `visual_style` / `visual_style_label` / `visual_style_prompt`：画面风格
-- `genre` / `genre_subcategory` / `is_xianxia` / `content_type`：题材和内容类型，会送进模型
+- `content_type`：内容类型。短剧会要求开场进入冲突、收场留钩子
+- `av_mode`：项目是否勾选 AV
 - `min_scenes`：场次下限，只防止长章被收成概述
+- 画面风格、题材和是否修仙不送进这一步。场次只按正文拆
 - `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
 
 ## 出参说明

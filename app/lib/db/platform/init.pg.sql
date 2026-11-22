@@ -49,3 +49,42 @@ CREATE INDEX IF NOT EXISTS idx_dream_jobs_pending
 CREATE UNIQUE INDEX IF NOT EXISTS idx_dream_jobs_pending_session
   ON memory_dream_jobs(skill_name, session_id)
   WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS execution_runs (
+  id BIGSERIAL PRIMARY KEY,
+  app_key TEXT NOT NULL DEFAULT '',
+  skill_name TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL DEFAULT '',
+  flow_key TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  target_label TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'running',
+  error_text TEXT NOT NULL DEFAULT '',
+  elapsed_ms INTEGER NOT NULL DEFAULT 0,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_execution_runs_started
+  ON execution_runs(started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_execution_runs_skill
+  ON execution_runs(skill_name, started_at DESC);
+
+CREATE TABLE IF NOT EXISTS execution_steps (
+  id BIGSERIAL PRIMARY KEY,
+  run_id BIGINT NOT NULL REFERENCES execution_runs(id) ON DELETE CASCADE,
+  node_key TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  skill_name TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'running',
+  log_text TEXT NOT NULL DEFAULT '',
+  error_text TEXT NOT NULL DEFAULT '',
+  elapsed_ms INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_execution_steps_run
+  ON execution_steps(run_id, sort_order, id);

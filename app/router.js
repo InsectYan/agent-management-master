@@ -30,6 +30,14 @@ module.exports = app => {
   router.post('/api/memory/:skillName/append', controller.memory.append);
   router.post('/api/memory/:skillName/search', controller.memory.search);
 
+  router.get('/api/executions', controller.execution.index);
+  router.get('/api/executions/skills', controller.execution.skills);
+  router.get('/api/executions/:id', controller.execution.show);
+  router.post('/api/executions', controller.execution.open);
+  router.post('/api/executions/:id/steps', controller.execution.step);
+  router.post('/api/executions/:id/steps/:stepId/finish', controller.execution.finishStep);
+  router.post('/api/executions/:id/finish', controller.execution.finish);
+
   /** 通用 invoke：POST body 同 Skill 路由参数 */
   router.post('/api/skills/:name/invoke', controller.skill.invoke);
   /** SSE 流式 invoke：推送 status/delta，结束推送 done */

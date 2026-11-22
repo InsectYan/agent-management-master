@@ -14,6 +14,20 @@ const { registry } = require('../lib/schemes/registry');
 const { resolveWorkScope } = require('../lib/work/scope');
 const { turnNote, writeWorkTrace, searchWorkKnowledge } = require('../lib/work/trace');
 
+function decodeTrace(value) {
+  const raw = String(value || '');
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function traceNote(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
 class SkillInvokeService extends Service {
   /**
    * 准备 invoke 上下文（校验 + enrich）
@@ -36,6 +50,17 @@ class SkillInvokeService extends Service {
 
     const body = bodyOverride || ctx.request.body || {};
     const query = ctx.query || {};
+    const traceRunId = Number(ctx.get('x-trace-run-id') || body.trace_run_id) || 0;
+    const traceTitle = decodeTrace(ctx.get('x-trace-title') || body.trace_title || '').slice(0, 80);
+    const traceApp = String(ctx.get('x-trace-app') || body.trace_app || '').slice(0, 40);
+    if (body && typeof body === 'object') {
+      delete body.trace_run_id;
+      delete body.trace_title;
+      delete body.trace_app;
+    }
+    ctx.state.traceRunId = traceRunId;
+    ctx.state.traceTitle = traceTitle;
+    ctx.state.traceApp = traceApp;
 
     const llm = resolveLlm({
       requestProfileId: body.llm_profile || query.llm_profile,
@@ -251,14 +276,136 @@ class SkillInvokeService extends Service {
     return meta;
   }
 
+  async _traceFailEarly(skillName, ctx, err) {
+    try {
+      const runId = await this.service.execution.open({
+        app_key: ctx.state.traceApp || String(ctx.get('x-trace-app') || ''),
+        skill_name: skillName,
+        action: '',
+        flow_key: 'skill',
+        title: skillName,
+        target_label: '',
+      });
+      const note = traceNote(err?.message || '失败');
+      if (runId) {
+        await this.service.execution.step(runId, {
+          node_key: 'invoke',
+          title: '调用',
+          skill_name: skillName,
+          status: 'error',
+          log_text: note || '调用没有开始',
+          error_text: note,
+          elapsed_ms: 0,
+        });
+        await this.service.execution.finish(runId, {
+          status: 'error',
+          error_text: note,
+          elapsed_ms: 0,
+        });
+      }
+    } catch (traceErr) {
+      this.ctx.logger.warn('[execution] early %s', traceErr.message);
+    }
+  }
+
+  async _traceBegin(ctx, prepared) {
+    const parentId = Number(ctx.state.traceRunId) || 0;
+    const action = String(prepared.params?.action || '').slice(0, 80);
+    const skillName = prepared.skill.name;
+    const title = String(ctx.state.traceTitle || '').trim()
+      || (action ? `${skillName} / ${action}` : skillName);
+    const fields = {
+      app_key: ctx.state.traceApp || '',
+      skill_name: skillName,
+      action,
+      flow_key: 'skill',
+      title,
+      target_label: '',
+    };
+    let ownId = 0;
+    let ownStep = 0;
+    let parentStep = 0;
+    try {
+      ownId = await this.service.execution.open(fields);
+      if (ownId) {
+        ownStep = await this.service.execution.step(ownId, {
+          node_key: action || 'invoke',
+          title,
+          skill_name: skillName,
+          status: 'running',
+          log_text: '已开始',
+        });
+      }
+    } catch (err) {
+      this.ctx.logger.warn('[execution] begin %s', err.message);
+    }
+    if (parentId) {
+      try {
+        parentStep = await this.service.execution.step(parentId, {
+          node_key: action || 'invoke',
+          title,
+          skill_name: skillName,
+          status: 'running',
+          log_text: '已开始',
+        });
+      } catch (err) {
+        this.ctx.logger.warn('[execution] parent %s', err.message);
+      }
+    }
+    return {
+      ownId,
+      ownStep,
+      parentId,
+      parentStep,
+      started: Date.now(),
+    };
+  }
+
+  async _traceEnd(trace, status, note) {
+    if (!trace) return;
+    const elapsed = Math.max(0, Date.now() - (trace.started || Date.now()));
+    const text = traceNote(note);
+    const fields = {
+      status,
+      log_text: text || (status === 'ok' ? '已返回' : '失败'),
+      error_text: status === 'error' ? text : '',
+      elapsed_ms: elapsed,
+    };
+    try {
+      if (trace.ownStep) await this.service.execution.finishStep(trace.ownStep, fields);
+      if (trace.ownId) {
+        await this.service.execution.finish(trace.ownId, {
+          status,
+          error_text: fields.error_text,
+          elapsed_ms: elapsed,
+        });
+      }
+      if (trace.parentStep) await this.service.execution.finishStep(trace.parentStep, fields);
+    } catch (err) {
+      this.ctx.logger.warn('[execution] end %s', err.message);
+    }
+  }
+
   /**
    * 执行指定 Skill（JSON 响应）
    * @param {Object} options
    */
   async invoke({ skillName, ctx, bodyOverride }) {
-    const prepared = await this._prepareInvoke({ skillName, ctx, bodyOverride });
+    let prepared;
     try {
-      return await this._finalizeInvoke({ ...prepared, ctx });
+      prepared = await this._prepareInvoke({ skillName, ctx, bodyOverride });
+    } catch (err) {
+      await this._traceFailEarly(skillName, ctx, err);
+      throw err;
+    }
+    const trace = await this._traceBegin(ctx, prepared);
+    try {
+      const result = await this._finalizeInvoke({ ...prepared, ctx });
+      await this._traceEnd(trace, 'ok', '已返回');
+      return result;
+    } catch (err) {
+      await this._traceEnd(trace, 'error', err?.message || '失败');
+      throw err;
     } finally {
       ctx.state._releaseLlmAbort?.();
     }
@@ -270,7 +417,13 @@ class SkillInvokeService extends Service {
    */
   async invokeStream({ skillName, ctx, bodyOverride }) {
     const mergedBody = { ...(bodyOverride || ctx.request.body || {}), stream: true };
-    const prepared = await this._prepareInvoke({ skillName, ctx, bodyOverride: mergedBody });
+    let prepared;
+    try {
+      prepared = await this._prepareInvoke({ skillName, ctx, bodyOverride: mergedBody });
+    } catch (err) {
+      await this._traceFailEarly(skillName, ctx, err);
+      throw err;
+    }
 
     ctx.set({
       'Content-Type': 'text/event-stream',
@@ -302,14 +455,17 @@ class SkillInvokeService extends Service {
       onDelta: payload => emit('delta', payload),
     };
 
+    const trace = await this._traceBegin(ctx, prepared);
     try {
       const body = await this._finalizeInvoke({
         ...prepared,
         ctx,
         streamHooks: { piHooks, schemeHooks },
       });
+      await this._traceEnd(trace, 'ok', '已返回');
       emit('done', body);
     } catch (err) {
+      await this._traceEnd(trace, 'error', err?.message || '失败');
       emit('error', { message: err.message, status: err.status || 500 });
     } finally {
       ctx.state._releaseLlmAbort?.();

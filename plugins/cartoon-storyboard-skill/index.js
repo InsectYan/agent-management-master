@@ -54,6 +54,7 @@ module.exports = {
         'outline_only',
         'expand_one',
         'min_shots',
+        'scene_index',
         'visual_style',
         'visual_style_label',
         'visual_style_prompt',
@@ -63,6 +64,7 @@ module.exports = {
         'content_type',
         'av_mode',
         'asset_facts',
+        'prev_shot',
       ],
       initialState: { thinking: '', reply: '', summary: '', shots: [], omissions: [] },
       stateMerge: {
@@ -102,11 +104,16 @@ module.exports = {
         loopSystemPrompt = loadTemplate('outline-system.md');
       } else if (expandOne) {
         topic = '漫剧单镜扩写';
-        loopSystemPrompt = [
+        const seed = params.seed_shot && typeof params.seed_shot === 'object' ? { ...params.seed_shot } : {};
+        delete seed.prev_shot;
+        const blocks = [
           loadTemplate('expand-one-system.md'),
           '',
-          'seed_shot：' + JSON.stringify(params.seed_shot || {}),
-        ].join('\n');
+          'seed_shot：' + JSON.stringify(seed),
+        ];
+        const prevShot = params.prev_shot || params.seed_shot?.prev_shot || null;
+        if (prevShot) blocks.push('prev_shot：' + JSON.stringify(prevShot));
+        loopSystemPrompt = blocks.join('\n');
       } else {
         loopSystemPrompt = buildStoryboardSystemPrompt(loadTemplate('loop-system.md'), {
           ...routeInput,
@@ -120,7 +127,11 @@ module.exports = {
         topic,
         script_data: script,
         body,
-        seed_shot: params.seed_shot || null,
+        seed_shot: params.seed_shot && typeof params.seed_shot === 'object'
+          ? (({ prev_shot, ...seed }) => seed)(params.seed_shot)
+          : (params.seed_shot || null),
+        scene_index: outlineOnly && Number(params.scene_index) > 0 ? Math.round(Number(params.scene_index)) : undefined,
+        prev_shot: (expandOne || outlineOnly) ? (params.prev_shot || params.seed_shot?.prev_shot || null) : undefined,
         source_paragraphs: outlineOnly && Array.isArray(params.source_paragraphs) ? params.source_paragraphs : undefined,
         scene_spans: outlineOnly && Array.isArray(params.scene_spans) ? params.scene_spans : undefined,
         loop_json_schema_hint: outlineOnly

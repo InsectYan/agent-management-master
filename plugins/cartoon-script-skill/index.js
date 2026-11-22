@@ -47,12 +47,6 @@ module.exports = {
       userContextFields: [
         'chapter_title',
         'body',
-        'visual_style',
-        'visual_style_label',
-        'visual_style_prompt',
-        'genre',
-        'genre_subcategory',
-        'is_xianxia',
         'content_type',
         'min_scenes',
         'asset_facts',
@@ -77,20 +71,18 @@ module.exports = {
         throw err;
       }
       const minScenes = Number(params.min_scenes) > 0 ? Math.round(Number(params.min_scenes)) : minStoryUnits(body.length);
-      return {
+      const next = {
         ...params,
         ...readProductionSource(params),
         action: 'draft',
         topic: String(params.chapter_title || '未命名章节').slice(0, 80),
         body,
         min_scenes: minScenes,
-        visual_style: String(params.visual_style || ''),
-        visual_style_label: String(params.visual_style_label || ''),
-        visual_style_prompt: String(params.visual_style_prompt || ''),
-        genre: String(params.genre || ''),
-        genre_subcategory: String(params.genre_subcategory || ''),
-        is_xianxia: params.is_xianxia,
       };
+      [ 'visual_style', 'visual_style_label', 'visual_style_prompt', 'genre', 'genre_subcategory', 'is_xianxia' ].forEach(key => {
+        delete next[key];
+      });
+      return next;
     },
   },
 };

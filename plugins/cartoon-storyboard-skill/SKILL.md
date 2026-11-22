@@ -21,8 +21,9 @@
 
 - `script_data`：已定稿剧本。分镜只读这份剧本
 - `body`：即使传入也会清空，不再用来补情节或对白
-- `outline_only`：只出剧情覆盖与 `duration_sec`，不写完整时间轴
+- `outline_only`：只出剧情覆盖与 `duration_sec`，不写完整时间轴。带 `scene_index` 时一次只拆这一场
 - `expand_one` + `seed_shot`：单段扩写（含 duration_sec）
+- `prev_shot`：提示词扩写时附上排序中的上一镜。含剧情、对白，以及已经写好的视频提示词和尾帧。只用来核对衔接，避免镜头剧情错位
 - `package_id`、`package_version` 或 `copy_block_id`：两者不能同时出现
 - `content_type`：内容类型
 - `visual_style` / `visual_style_label` / `visual_style_prompt`：画面风格

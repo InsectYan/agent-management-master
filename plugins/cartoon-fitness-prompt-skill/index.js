@@ -42,7 +42,7 @@ module.exports = {
     },
   ],
   dbTables: [],
-  memoryConfig: { enabled: true, type: 'file', scope: 'work' },
+  memoryConfig: { enabled: false, type: 'file', scope: 'work' },
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'draft' },

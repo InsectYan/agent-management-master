@@ -3,20 +3,30 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
-const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
+const { parsePromptStep, missingDialogueLines } = require('../cartoon-prompt-skill/lib/parseStep');
 const { sexualBlock } = require('../_shared/actionLibrary');
 
-function parseAvStep(rawText) {
-  const parsed = parsePromptStep(rawText);
+function parseAvStep(rawText, meta = {}) {
+  const parsed = parsePromptStep(rawText, meta);
   const prompts = Array.isArray(parsed.prompts) ? parsed.prompts : [];
   const positive = String(prompts[0]?.positive_zh || '').trim();
+  const dialogue = (Array.isArray(meta?.input?.shots) ? meta.input.shots : [])
+    .map(item => String(item?.dialogue || ''))
+    .join('\n');
+  const missing = positive ? missingDialogueLines(positive, dialogue) : [];
+  const kept = missing.length
+    ? prompts.map((item, index) => (index === 0 ? { ...item, positive_zh: '' } : item))
+    : prompts;
+  const reply = missing.length
+    ? '收口稿漏了对白原句，沿用上一稿'
+    : (positive ? (parsed.reply || '已写入') : '没有画面提示词，沿用上一稿');
   return {
     ...parsed,
     continue: false,
     done: true,
-    prompts,
-    reply: positive ? (parsed.reply || '已写入') : '没有画面提示词，沿用上一稿',
-    summary: positive ? (parsed.summary || '已写入') : '没有画面提示词，沿用上一稿',
+    prompts: kept,
+    reply,
+    summary: reply,
   };
 }
 
@@ -27,7 +37,7 @@ function loadText(name) {
 module.exports = {
   name: 'cartoon-av-prompt-skill',
   project: 'cartoon',
-  version: '0.3.0',
+  version: '0.3.1',
   description: 'AV 项目收口视频和静帧。动作细节读取公共动作知识库。双方都已写明满二十一岁且命中亲密动作时，再引用男女体征知识库',
   scheme: 'loop',
   routes: [
@@ -39,7 +49,7 @@ module.exports = {
     },
   ],
   dbTables: [],
-  memoryConfig: { enabled: true, type: 'file', scope: 'work' },
+  memoryConfig: { enabled: false, type: 'file', scope: 'work' },
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'draft' },

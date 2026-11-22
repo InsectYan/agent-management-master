@@ -96,6 +96,27 @@ function usableFrame(text) {
   return usablePositive(text);
 }
 
+function quotedDialogue(text) {
+  const lines = [];
+  const re = /[「“"]([^」”"]+)[」”"]/g;
+  let match;
+  while ((match = re.exec(String(text || '')))) {
+    const line = match[1].replace(/\s+/g, '').trim();
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
+function missingDialogueLines(positive, dialogue) {
+  const hay = String(positive || '').replace(/\s+/g, '');
+  return quotedDialogue(dialogue).filter(line => !hay.includes(line));
+}
+
+function shotDialogue(meta) {
+  const shots = Array.isArray(meta?.input?.shots) ? meta.input.shots : [];
+  return shots.map(item => String(item?.dialogue || '')).join('\n');
+}
+
 function promptPart(meta) {
   const part = String(meta?.input?.prompt_part || '').trim();
   if (part === 'positive' || part === 'frame_start' || part === 'frame_end' || part === 'negative') return part;
@@ -142,7 +163,7 @@ function parsePromptStep(rawText, meta = {}) {
       frame_end_zh: item.frame_end_zh || phrase(readJsonStringField(rawText, 'frame_end_zh')),
     }));
   }
-  const complete = part === 'positive'
+  const structureReady = part === 'positive'
     ? prompts.some(item => usablePositive(item.positive_zh))
     : part === 'frame_start'
       ? prompts.some(item => usableFrame(item.frame_start_zh))
@@ -151,15 +172,25 @@ function parsePromptStep(rawText, meta = {}) {
         : part === 'negative'
           ? prompts.some(item => String(item.negative_zh || '').trim())
           : prompts.some(item => usablePositive(item.positive_zh) && item.frame_start_zh && item.frame_end_zh);
-  const reply = complete
-    ? (String(parsed.reply || parsed.summary || '').trim() || `写了 ${prompts.length} 条提示词`)
-    : (part === 'frame_start'
+  const checksDialogue = part === 'positive' || part === '';
+  const missingDialogue = checksDialogue
+    ? missingDialogueLines(prompts.map(item => item.positive_zh).join('\n'), shotDialogue(meta))
+    : [];
+  const step = Number(meta.step) || 0;
+  const maxSteps = Number(meta.maxSteps) || 1;
+  const lastStep = step >= maxSteps - 1;
+  const complete = structureReady && (missingDialogue.length === 0 || lastStep);
+  const reply = !structureReady
+    ? (part === 'frame_start'
       ? '首帧提示词还没写全。frame_start_zh 要有内容。'
       : part === 'frame_end'
         ? '尾帧提示词还没写全。frame_end_zh 要有内容。'
         : part === 'positive'
           ? '视频提示词还没写全。positive_zh 要有内容。'
-          : '视频提示词还没写全。positive_zh、frame_start_zh、frame_end_zh 都要有内容，不能只回复已写入。');
+          : '视频提示词还没写全。positive_zh、frame_start_zh、frame_end_zh 都要有内容，不能只回复已写入。')
+    : missingDialogue.length
+      ? `漏了对白原句：${missingDialogue.join('｜')}。把这些原句写进对应时间片的对白，不要用情节总结代替。`
+      : (String(parsed.reply || parsed.summary || '').trim() || `写了 ${prompts.length} 条提示词`);
   return {
     continue: !complete,
     done: complete,
@@ -170,4 +201,4 @@ function parsePromptStep(rawText, meta = {}) {
   };
 }
 
-module.exports = { parsePromptStep };
+module.exports = { parsePromptStep, missingDialogueLines };

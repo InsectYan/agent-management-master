@@ -32,6 +32,15 @@ const CATALOG = [
     defaultMaxTokens: 2048,
   },
   {
+    id: 'ollama-qwen38-27b-turbo-heretic',
+    label: '本地 Ollama · qwen3.8-27b-turbo Q4_K_M',
+    provider: 'ollama',
+    model: 'qwen3.8-27b-turbo-heretic:q4_k_m',
+    baseUrl: 'http://localhost:11434/v1',
+    localOllama: true,
+    defaultMaxTokens: 16384,
+  },
+  {
     id: 'ollama-gpt-oss',
     label: '本地 Ollama · gpt-oss:120b',
     provider: 'ollama',
@@ -249,6 +258,7 @@ function resolveLlmProfile(profileId, appSettings) {
     'qwen2.5-vl-heretic:72b': 'ollama-qwen25vl-heretic',
     'qwen2.5-vl-heretic:72b-q6_k': 'ollama-qwen25vl-heretic-q6k',
     'qwen2.5-vl-heretic:72b-q5_k_m': 'ollama-qwen25vl-heretic-q5km',
+    'qwen3.8-27b-turbo-heretic:q4_k_m': 'ollama-qwen38-27b-turbo-heretic',
   };
   const normalizedId = (profileId || '').trim();
   const id = aliases[normalizedId] || normalizedId || getPlatformDefaultProfileId(appSettings);

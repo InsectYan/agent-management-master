@@ -40,7 +40,7 @@ function partContract(part) {
 module.exports = {
   name: 'cartoon-prompt-skill',
   project: 'cartoon',
-  version: '0.4.0',
+  version: '0.5.0',
   description: '为分镜写正负提示词，不改节点图，不提交 ComfyUI',
   scheme: 'loop',
   routes: [
@@ -52,12 +52,12 @@ module.exports = {
     },
   ],
   dbTables: [],
-  memoryConfig: { enabled: true, type: 'file', scope: 'work' },
+  memoryConfig: { enabled: false, type: 'file', scope: 'work' },
   config: {
     llmDefaultProfile: 'ollama-qwen',
     actionDefaults: { POST: 'draft' },
     loop: {
-      maxSteps: 2,
+      maxSteps: 3,
       stopWhen: 'llm-done',
       systemPromptFile: 'loop-system.md',
       temperature: 0.4,

@@ -80,6 +80,8 @@ module.exports = {
         'content_type',
         'asset_facts',
         'local_use_note',
+        'requirement',
+        'standalone_note',
       ],
       initialState: { thinking: '', reply: '', summary: '', prompts: [] },
       stateMerge: {

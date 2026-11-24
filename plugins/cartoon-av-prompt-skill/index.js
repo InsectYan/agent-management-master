@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
+const { requirementBlock } = require('../_shared/cartoonPromptKit');
 const { parsePromptStep, missingDialogueLines } = require('../cartoon-prompt-skill/lib/parseStep');
 const { sexualBlock } = require('../_shared/actionLibrary');
 
@@ -65,6 +66,7 @@ module.exports = {
       parseStepOutput: parseAvStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","frame_start_zh":"【风格】【场记】【画面】【光影】【表演】","frame_end_zh":"【风格】【场记】【画面】【光影】【表演】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
+        'requirement',
         'shots',
         'body',
         'visual_style',
@@ -113,13 +115,15 @@ module.exports = {
         body: '',
         av_mode: true,
         local_use_note: localUseNote,
+        requirement: String(params.requirement || '').trim(),
         loop_system_prompt: [
           loadText('loop-system.md'),
           styleLine,
           step,
           localUseNote,
           sexualBlock(shots, { confirmed: true }),
-        ].join('\n\n'),
+          requirementBlock(params.requirement),
+        ].filter(Boolean).join('\n\n'),
       };
     },
   },

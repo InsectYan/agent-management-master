@@ -1,6 +1,7 @@
 'use strict';
 
 const { parseSheetStep } = require('./lib/parseStep');
+const { packStyles } = require('../_shared/styleLibrary');
 
 module.exports = {
   name: 'cartoon-asset-sheet-skill',
@@ -32,7 +33,7 @@ module.exports = {
       localLlmTimeoutMs: 21600000,
       parseStepOutput: parseSheetStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompt":""}',
-      userContextFields: [ 'kind', 'name', 'look', 'note', 'visual_style_label', 'visual_style_prompt', 'sparse', 'av_nude' ],
+      userContextFields: [ 'kind', 'name', 'look', 'note', 'visual_style_label', 'visual_style_prompt', 'sparse', 'av_nude', 'formula', 'style_sheet' ],
       initialState: { thinking: '', reply: '', summary: '', prompt: '' },
       stateMerge: {
         thinking: 'replace',
@@ -51,6 +52,8 @@ module.exports = {
         err.status = 400;
         throw err;
       }
+      const styleIds = Array.isArray(params.style_ids) ? params.style_ids : [ params.visual_style ];
+      const packed = packStyles(kind, styleIds);
       return {
         action: 'draft',
         topic: kind === 'scene' ? `场景设定图 ${name}` : `人物设定图 ${name}`,
@@ -62,6 +65,8 @@ module.exports = {
         visual_style_prompt: String(params.visual_style_prompt || '').slice(0, 2000),
         sparse: params.sparse ? '1' : '0',
         av_nude: params.av_nude === true || params.av_nude === 1 || params.av_nude === '1' || params.av_nude === 'true',
+        formula: packed.formula,
+        style_sheet: packed.styleSheet,
       };
     },
   },

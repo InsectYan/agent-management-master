@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
+const { requirementBlock } = require('../_shared/cartoonPromptKit');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
 
 function parseFitnessStep(rawText) {
@@ -58,6 +59,7 @@ module.exports = {
       parseStepOutput: parseFitnessStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","frame_start_zh":"","frame_end_zh":"","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
+        'requirement',
         'shots',
         'visual_style',
         'visual_style_label',
@@ -102,11 +104,13 @@ module.exports = {
         shots,
         body: '',
         topics,
+        requirement: String(params.requirement || '').trim(),
         loop_system_prompt: [
           loadText('loop-system.md'),
           styleLine,
           step,
-        ].join('\n\n'),
+          requirementBlock(params.requirement),
+        ].filter(Boolean).join('\n\n'),
       };
     },
   },

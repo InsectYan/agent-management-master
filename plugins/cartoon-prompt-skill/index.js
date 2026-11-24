@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
-const { buildPromptSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
+const { buildPromptSystemPrompt, detectXianxia, requirementBlock } = require('../_shared/cartoonPromptKit');
 const { actionBlock } = require('../_shared/actionLibrary');
 const { parsePromptStep } = require('./lib/parseStep');
 
@@ -68,6 +68,8 @@ module.exports = {
       parseStepOutput: parsePromptStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","prompts":[{"index":0,"positive_zh":"【风格】【场记】【时长】【时间轴】","frame_start_zh":"【风格】【场记】【画面】【光影】【表演】","frame_end_zh":"【风格】【场记】【画面】【光影】【表演】","negative_zh":"禁止水印，禁止字幕","production_note":""}],"reply":"已写入","summary":"已写入"}',
       userContextFields: [
+        'requirement',
+        'standalone_note',
         'shots',
         'body',
         'repair_note',
@@ -80,8 +82,6 @@ module.exports = {
         'content_type',
         'asset_facts',
         'local_use_note',
-        'requirement',
-        'standalone_note',
       ],
       initialState: { thinking: '', reply: '', summary: '', prompts: [] },
       stateMerge: {
@@ -130,15 +130,17 @@ module.exports = {
         is_xianxia: isXianxia,
         local_use_note: localUseNote,
         loop_json_schema_hint: contract.hint,
+        requirement: String(params.requirement || '').trim(),
         loop_system_prompt: [
           buildPromptSystemPrompt(loadBasePrompt(), { ...routeInput, is_xianxia: isXianxia }),
           actionBlock(shots),
           contract.line,
-          '只依据 shot.source_excerpt、description 和 dialogue 写这一镜。source_excerpt 是这一镜对应的原文段，别的镜头可能共用同一段。没有这一段时不要回读整章。',
+          '只依据 shot.source_excerpt、description、dialogue 和 shot.requirement 写这一镜。source_excerpt 是这一镜对应的原文段，别的镜头可能共用同一段。没有这一段时不要回读整章。shot.requirement 有内容时，画面必须参考这段要求提示。',
           shots.some(item => item?.prev_shot)
             ? 'shot.prev_shot 是上一镜已经拍过的剧情和提示词，只用来核对这一镜从哪里接上。不要把上一镜的情节再开一遍，也不要跳过这一镜原文里还没拍的句子。'
             : '',
           localUseNote,
+          requirementBlock(params.requirement),
         ].filter(Boolean).join('\n\n'),
       };
     },

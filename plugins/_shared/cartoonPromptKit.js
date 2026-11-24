@@ -105,6 +105,16 @@ function buildStoryboardSystemPrompt(basePrompt, input = {}) {
   ].filter(Boolean).join('\n');
 }
 
+function requirementBlock(text) {
+  const requirement = String(text || '').trim();
+  if (!requirement) return '';
+  return [
+    '要求提示是这次必须参考的额外说明。写视频提示词、首帧、尾帧时都要落到画面里，不要漏掉，也不要改写成旁白。',
+    `要求提示：${requirement}`,
+    '它和上面的合同冲突时，画面内容按要求提示改。对白原句、时长和项目画面风格仍然保留。',
+  ].join('\n');
+}
+
 function buildPromptSystemPrompt(basePrompt, input = {}) {
   const isXianxia = detectXianxia(input);
   return [
@@ -128,5 +138,6 @@ module.exports = {
   loadStoryboardRefs,
   buildStoryboardSystemPrompt,
   buildPromptSystemPrompt,
+  requirementBlock,
   readRef,
 };

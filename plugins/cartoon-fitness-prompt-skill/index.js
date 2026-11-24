@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { requirementBlock } = require('../_shared/cartoonPromptKit');
+const { enrichStylePrompt } = require('../_shared/styleLibrary');
 const { parsePromptStep } = require('../cartoon-prompt-skill/lib/parseStep');
 
 function parseFitnessStep(rawText) {
@@ -91,9 +92,11 @@ module.exports = {
         err.status = 400;
         throw err;
       }
+      const stylePrompt = enrichStylePrompt(params);
       const styleLine = [
         '画面风格：' + String(params.visual_style_label || params.visual_style || '未指定'),
-        '风格描述：' + String(params.visual_style_prompt || ''),
+        '风格描述：' + stylePrompt,
+        '改写后的【风格】先留画风公式说明，再留风格层，两段都要在。',
       ].join('\n');
       const step = '项目已勾选健身，这一镜走收口。这一次只改写 positive_zh。时长保持这一镜已有的秒数，按镜头内容落在 5 到 15 秒，不要改成固定秒数。';
       return {
@@ -104,6 +107,7 @@ module.exports = {
         shots,
         body: '',
         topics,
+        visual_style_prompt: stylePrompt,
         requirement: String(params.requirement || '').trim(),
         loop_system_prompt: [
           loadText('loop-system.md'),

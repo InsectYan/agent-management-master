@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
 const { buildPromptSystemPrompt, detectXianxia, requirementBlock } = require('../_shared/cartoonPromptKit');
+const { enrichStylePrompt } = require('../_shared/styleLibrary');
 const { actionBlock } = require('../_shared/actionLibrary');
 const { parsePromptStep } = require('./lib/parseStep');
 
@@ -104,7 +105,7 @@ module.exports = {
         ...params,
         visual_style: String(params.visual_style || ''),
         visual_style_label: String(params.visual_style_label || ''),
-        visual_style_prompt: String(params.visual_style_prompt || ''),
+        visual_style_prompt: enrichStylePrompt(params),
         genre: String(params.genre || ''),
         genre_subcategory: String(params.genre_subcategory || ''),
       };

@@ -129,7 +129,8 @@ function buildPromptSystemPrompt(basePrompt, input = {}) {
     '当前是否修仙：' + (isXianxia ? '是。落实修仙特效、动态和人数锁定，不要硬删粒子与氛围。' : '否。不要硬塞灵气法宝。'),
     '画面风格 value：' + String(input.visual_style || ''),
     '画面风格展示名：' + String(input.visual_style_label || ''),
-    '画面风格提示词描述（写入 positive_zh 时必须明确写出，不可只写短标签）：' + String(input.visual_style_prompt || input.visual_style_label || input.visual_style || ''),
+    '画面风格提示词描述（写入 positive_zh 的【风格】时必须明确写出，不可只写短标签）：' + String(input.visual_style_prompt || input.visual_style_label || input.visual_style || ''),
+    '【风格】先写画风公式说明，再写风格层。皮肤、光线、景深、色彩按画风公式留全，不能只留风格层那一段。',
   ].filter(Boolean).join('\n');
 }
 

@@ -33,7 +33,7 @@ module.exports = {
       localLlmTimeoutMs: 21600000,
       parseStepOutput: parseSheetStep,
       jsonSchemaHint: '{"done":true,"continue":false,"thinking":"","reply":"","summary":"","prompt":""}',
-      userContextFields: [ 'kind', 'name', 'look', 'note', 'visual_style_label', 'visual_style_prompt', 'sparse', 'av_nude', 'formula', 'style_sheet' ],
+      userContextFields: [ 'kind', 'name', 'look', 'note', 'visual_style_label', 'visual_style_prompt', 'era_note', 'sparse', 'av_nude', 'formula', 'style_sheet' ],
       initialState: { thinking: '', reply: '', summary: '', prompt: '' },
       stateMerge: {
         thinking: 'replace',
@@ -63,6 +63,7 @@ module.exports = {
         note: String(params.note || '').slice(0, 500),
         visual_style_label: String(params.visual_style_label || '').slice(0, 80),
         visual_style_prompt: String(params.visual_style_prompt || '').slice(0, 2000),
+        era_note: String(params.era_note || '').slice(0, 2000),
         sparse: params.sparse ? '1' : '0',
         av_nude: params.av_nude === true || params.av_nude === 1 || params.av_nude === '1' || params.av_nude === 'true',
         formula: packed.formula,

@@ -46,6 +46,7 @@
       "id": "cartoon",
       "title": "漫剧",
       "skills": [
+        "cartoon-novel-script-skill",
         "cartoon-script-skill",
         "cartoon-storyboard-skill",
         "cartoon-prompt-skill",

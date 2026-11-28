@@ -56,6 +56,7 @@ module.exports = {
         'content_type',
         'asset_facts',
         'av_mode',
+        'era_note',
       ],
       initialState: { thinking: '', reply: '', summary: '', repair_notes: '', script_data: {} },
       stateMerge: {

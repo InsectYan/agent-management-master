@@ -79,6 +79,7 @@ module.exports = {
         'visual_style_prompt',
         'genre',
         'genre_subcategory',
+        'era_note',
         'is_xianxia',
         'content_type',
         'asset_facts',

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
-const { requirementBlock } = require('../_shared/cartoonPromptKit');
+const { requirementBlock, eraBlock } = require('../_shared/cartoonPromptKit');
 const { enrichStylePrompt } = require('../_shared/styleLibrary');
 const { parsePromptStep, missingDialogueLines } = require('../cartoon-prompt-skill/lib/parseStep');
 const { sexualBlock } = require('../_shared/actionLibrary');
@@ -73,6 +73,7 @@ module.exports = {
         'visual_style',
         'visual_style_label',
         'visual_style_prompt',
+        'era_note',
         'content_type',
         'av_mode',
         'asset_facts',
@@ -123,6 +124,7 @@ module.exports = {
         loop_system_prompt: [
           loadText('loop-system.md'),
           styleLine,
+          eraBlock(params, 'visual'),
           step,
           localUseNote,
           sexualBlock(shots, { confirmed: true }),

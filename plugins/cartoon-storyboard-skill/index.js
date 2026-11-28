@@ -3,13 +3,22 @@
 const fs = require('fs');
 const path = require('path');
 const { readProductionSource } = require('../_shared/productionSource');
-const { buildStoryboardSystemPrompt, detectXianxia } = require('../_shared/cartoonPromptKit');
+const { buildStoryboardSystemPrompt, detectXianxia, eraBlock } = require('../_shared/cartoonPromptKit');
 const { enrichStylePrompt } = require('../_shared/styleLibrary');
 const { parseStoryboardStep } = require('./lib/parseStep');
 
 function loadTemplate(name) {
   const filePath = path.join(__dirname, 'templates', name);
   return fs.readFileSync(filePath, 'utf8').trim();
+}
+
+function directionBlock(mode) {
+  const note = mode === 'outline'
+    ? '这一步是大纲。下文全文用来决定拆几条、站位、动作是否具体、对白怎么拆、前后姿态怎么接。不要在 description 里写【0-X秒】时间轴，也不要把词库整段抄进 description。shot_sizes、camera_moves 从下文景别和运镜里选，并收成平台枚举。'
+    : mode === 'expand'
+      ? '这一步是单镜扩写。下文全文落实进这一条 description。剧本格式头之后写承接、场景描述、站位、角色、道具，再写时间档。每一档都写景别、拍摄视角、运镜、具体动作、微动作、表情、情绪、台词语气或内心独白、与剧情相符的光影或动作特效、具体音效。'
+      : '这一步直接出完整分镜。下文全文落实进每条 description，写法与单镜扩写相同。';
+  return [ note, '', loadTemplate('shot-from-script.md') ].join('\n');
 }
 
 function truthy(value) {
@@ -61,6 +70,7 @@ module.exports = {
         'visual_style_prompt',
         'genre',
         'genre_subcategory',
+        'era_note',
         'is_xianxia',
         'content_type',
         'av_mode',
@@ -103,7 +113,7 @@ module.exports = {
       let topic = isXianxia ? '修仙漫剧分镜' : '漫剧分镜';
       if (outlineOnly) {
         topic = '漫剧镜头大纲';
-        loopSystemPrompt = loadTemplate('outline-system.md');
+        loopSystemPrompt = [ loadTemplate('outline-system.md'), '', directionBlock('outline'), eraBlock(params, 'script') ].filter(Boolean).join('\n');
       } else if (expandOne) {
         topic = '漫剧单镜扩写';
         const seed = params.seed_shot && typeof params.seed_shot === 'object' ? { ...params.seed_shot } : {};
@@ -111,13 +121,17 @@ module.exports = {
         const blocks = [
           loadTemplate('expand-one-system.md'),
           '',
+          directionBlock('expand'),
+          '',
           'seed_shot：' + JSON.stringify(seed),
         ];
         const prevShot = params.prev_shot || params.seed_shot?.prev_shot || null;
         if (prevShot) blocks.push('prev_shot：' + JSON.stringify(prevShot));
+        const era = eraBlock(params, 'script');
+        if (era) blocks.push(era);
         loopSystemPrompt = blocks.join('\n');
       } else {
-        loopSystemPrompt = buildStoryboardSystemPrompt(loadTemplate('loop-system.md'), {
+        loopSystemPrompt = buildStoryboardSystemPrompt([ loadTemplate('loop-system.md'), '', directionBlock('full') ].join('\n'), {
           ...routeInput,
           is_xianxia: isXianxia,
         });

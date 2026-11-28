@@ -36,7 +36,7 @@ module.exports = {
       userContextFields: [
         'kind', 'name', 'notes', 'costume_note',
         'visual_style', 'visual_style_label', 'visual_style_prompt',
-        'genre', 'title', 'av_nude', 'formula', 'style_sheet',
+        'genre', 'title', 'era_note', 'av_nude', 'formula', 'style_sheet',
       ],
       initialState: { thinking: '', reply: '', summary: '', description: '', prompt: '' },
       stateMerge: {
@@ -72,6 +72,7 @@ module.exports = {
         visual_style_prompt: String(params.visual_style_prompt || '').slice(0, 2000),
         genre: String(params.genre || '').slice(0, 120),
         title: String(params.title || '').slice(0, 80),
+        era_note: String(params.era_note || '').slice(0, 2000),
         av_nude: params.av_nude === true || params.av_nude === 1 || params.av_nude === '1' || params.av_nude === 'true',
         formula: packed.formula,
         style_sheet: packed.styleSheet,

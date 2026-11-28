@@ -99,10 +99,20 @@ function buildStoryboardSystemPrompt(basePrompt, input = {}) {
     'visual_style_prompt：' + String(input.visual_style_prompt || ''),
     'genre：' + String(input.genre || ''),
     'genre_subcategory：' + String(input.genre_subcategory || ''),
+    eraBlock(input, 'script'),
     '',
     '—— 实用性参考文档（只允许原样遵守与落实，禁止优化删减简化）——',
     refs,
   ].filter(Boolean).join('\n');
+}
+
+function eraBlock(input = {}, mode = 'visual') {
+  const note = String(input.era_note || '').trim();
+  if (!note) return '';
+  const tail = mode === 'script'
+    ? '正文已经写明的穿着和地点保留。正文没写衣服时不要用这段编一套衣服，仍写「原文未写」。没有写明的日常环境不要写成另一个时代。'
+    : '画风只决定怎么画。正文、场次或这一镜已经写明的穿着和陈设以原文为准。没写明的常服、建筑、器物和陈设按这段补，不要换成另一个时代。';
+  return [ '时代背景说明：', note, tail ].join('\n');
 }
 
 function requirementBlock(text) {
@@ -132,6 +142,7 @@ function buildPromptSystemPrompt(basePrompt, input = {}) {
     '画面风格展示名：' + String(input.visual_style_label || ''),
     '画面风格提示词描述（写入 positive_zh 的【风格】时必须明确写出，不可只写短标签）：' + String(input.visual_style_prompt || input.visual_style_label || input.visual_style || ''),
     '【风格】先写画风公式说明，再写风格层。皮肤、光线、景深、色彩按画风公式留全，不能只留风格层那一段。',
+    eraBlock(input, 'visual'),
   ].filter(Boolean).join('\n');
 }
 
@@ -140,6 +151,7 @@ module.exports = {
   loadStoryboardRefs,
   buildStoryboardSystemPrompt,
   buildPromptSystemPrompt,
+  eraBlock,
   requirementBlock,
   readRef,
 };
